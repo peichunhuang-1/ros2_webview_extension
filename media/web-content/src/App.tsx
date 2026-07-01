@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './App.css';
 import { ros2Api } from './ros2_apis/ros2Api';
 import type { ConnectionStatus } from './ros2_apis/bridge_types';
+import InterfaceBrowser from './components/InterfaceBrowser';
 
 type ConnectState = 'idle' | 'connecting' | ConnectionStatus;
 
@@ -78,11 +79,7 @@ export default function App() {
             Press <strong>Connect</strong> to detect the ROS2 environment and enable schema lookup.
           </p>
         )}
-        {isConnected && (
-          <p className="hint">
-            Connected. Schema requests for msg / srv / action types are now available.
-          </p>
-        )}
+        {isConnected && <InterfaceBrowser />}
       </main>
     </div>
   );

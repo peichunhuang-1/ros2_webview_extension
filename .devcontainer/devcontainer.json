@@ -14,7 +14,7 @@
     "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
     "LD_LIBRARY_PATH": "/opt/ros/humble/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib/x86_64-linux-gnu:${containerEnv:LD_LIBRARY_PATH}",
     "PATH": "/opt/ros/humble/bin:${containerEnv:PATH}",
-    "PYTHONPATH": "/opt/ros/humble/lib/python3.10/site-packages:${containerEnv:PYTHONPATH}"
+    "PYTHONPATH": "/opt/ros/humble/local/lib/python3.10/dist-packages:/opt/ros/humble/lib/python3.10/site-packages:${containerEnv:PYTHONPATH}"
   },
 
   "postCreateCommand": "npm install && npm install --prefix media/web-content",

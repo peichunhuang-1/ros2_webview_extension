@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ros2-interfaces": {
+      "command": "node",
+      "args": ["dist/mcpServer.js"]
+    }
+  }
+}

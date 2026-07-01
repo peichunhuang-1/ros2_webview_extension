@@ -1,4 +1,4 @@
-import { isRos2Available, readMsgSchema, readSrvSchema, readActionSchema, type JsonSchema } from './schemaGen';
+import { isRos2Available, readMsgSchema, readSrvSchema, readActionSchema, listInterfaces, type JsonSchema, type InterfaceList } from './schemaGen';
 
 type ConnectionStatus = 'disconnected' | 'connected' | 'unavailable';
 
@@ -10,6 +10,7 @@ interface ConnectionState {
 class Ros2Connection {
   private state: ConnectionState = { status: 'disconnected', distro: null };
   private schemaCache = new Map<string, JsonSchema>();
+  private interfaceList: InterfaceList | null = null;
 
   connect(): ConnectionState {
     if (!isRos2Available()) {
@@ -26,6 +27,7 @@ class Ros2Connection {
   disconnect(): void {
     this.state = { status: 'disconnected', distro: null };
     this.schemaCache.clear();
+    this.interfaceList = null;
   }
 
   getState(): ConnectionState {
@@ -58,6 +60,13 @@ class Ros2Connection {
     const schema = await readActionSchema(pkg, name);
     this.schemaCache.set(key, schema);
     return schema;
+  }
+
+  listInterfaces(): InterfaceList {
+    if (!this.interfaceList) {
+      this.interfaceList = listInterfaces();
+    }
+    return this.interfaceList;
   }
 }
 

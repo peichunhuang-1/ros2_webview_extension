@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ros2Connection } from './ros2Connection';
+import { focusStore, type FocusEntry } from './focusStore';
 
 
 export default class WebviewPanelProvider implements vscode.WebviewViewProvider {
@@ -15,10 +16,6 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
   
   createOperationEventCallback() {
     return async (e: { type: string; payload?: unknown; __id?: number }) => {
-      if (e.type === 'ping') {
-        vscode.window.showInformationMessage('Pong! Webview → Extension works ✓');
-        return;
-      }
 
       // All request/response messages carry __id for the promise bridge.
       if (e.__id === undefined) { return; }
@@ -45,6 +42,21 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
         } else if (e.type === 'ros2/schema/action') {
           const { pkg, name } = e.payload as { pkg: string; name: string };
           result = await ros2Connection.getActionSchema(pkg, name);
+
+        } else if (e.type === 'ros2/interfaces/list') {
+          result = ros2Connection.listInterfaces();
+
+        } else if (e.type === 'ros2/focus/add') {
+          result = focusStore.add(e.payload as FocusEntry);
+
+        } else if (e.type === 'ros2/focus/remove') {
+          result = focusStore.remove(e.payload as FocusEntry);
+
+        } else if (e.type === 'ros2/focus/setActive') {
+          result = focusStore.setActive(e.payload as FocusEntry);
+
+        } else if (e.type === 'ros2/focus/list') {
+          result = focusStore.getState();
 
         } else {
           return;

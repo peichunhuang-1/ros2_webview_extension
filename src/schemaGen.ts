@@ -226,7 +226,8 @@ export async function readSrvSchema(packageName: string, serviceName: string): P
   const parser = await getParser();
   const specs = await parser.parseServiceFile(packageName, paths[0]);
   const request = await buildFields(specs.request.fields);
-  return { type: 'object', properties: request };
+  const response = await buildFields(specs.response.fields);
+  return { request: {properties: request }, response: {properties: response } };
 }
 
 export async function readActionSchema(packageName: string, actionName: string): Promise<JsonSchema> {
@@ -235,14 +236,69 @@ export async function readActionSchema(packageName: string, actionName: string):
 
   const parser = await getParser();
   const specs = await parser.parseActionFile(packageName, paths[0]);
+  const goal = await buildFields(specs.goal.fields);
+  const result = await buildFields(specs.result.fields);
+  const feedback = await buildFields(specs.feedback.fields);
   return {
-    goal:     await buildFields(specs.goal.fields),
-    result:   await buildFields(specs.result.fields),
-    feedback: await buildFields(specs.feedback.fields),
+    goal:     { properties: goal },
+    result:   { properties: result },
+    feedback: { properties: feedback },
   };
 }
 
 export function isRos2Available(): boolean {
   const prefix = process.env.AMENT_PREFIX_PATH ?? '';
   return prefix.length > 0 && fs.existsSync(prefix.split(':')[0]);
+}
+
+// --- Interface listing -------------------------------------------------------
+
+export interface InterfaceEntry {
+  pkg:  string;
+  name: string;
+}
+
+export interface InterfaceList {
+  msgs:    InterfaceEntry[];
+  srvs:    InterfaceEntry[];
+  actions: InterfaceEntry[];
+}
+
+export function listInterfaces(): InterfaceList {
+  const prefixPaths = (process.env.AMENT_PREFIX_PATH ?? '').split(':').filter(Boolean);
+
+  const kinds: { subdir: string; ext: string; out: InterfaceEntry[]; seen: Set<string> }[] = [
+    { subdir: 'msg',    ext: '.msg',    out: [], seen: new Set() },
+    { subdir: 'srv',    ext: '.srv',    out: [], seen: new Set() },
+    { subdir: 'action', ext: '.action', out: [], seen: new Set() },
+  ];
+
+  for (const prefix of prefixPaths) {
+    const shareDir = path.join(prefix, 'share');
+    let pkgs: string[];
+    try { pkgs = fs.readdirSync(shareDir); } catch { continue; }
+
+    for (const pkg of pkgs) {
+      for (const kind of kinds) {
+        const dir = path.join(shareDir, pkg, kind.subdir);
+        let files: string[];
+        try { files = fs.readdirSync(dir); } catch { continue; }
+
+        for (const file of files) {
+          if (!file.endsWith(kind.ext)) { continue; }
+          const name = file.slice(0, -kind.ext.length);
+          const id = `${pkg}/${name}`;
+          if (kind.seen.has(id)) { continue; }
+          kind.seen.add(id);
+          kind.out.push({ pkg, name });
+        }
+      }
+    }
+  }
+
+  for (const kind of kinds) {
+    kind.out.sort((a, b) => `${a.pkg}/${a.name}`.localeCompare(`${b.pkg}/${b.name}`));
+  }
+
+  return { msgs: kinds[0].out, srvs: kinds[1].out, actions: kinds[2].out };
 }

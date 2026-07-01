@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates cmake pkg-config python3-pip \
     && curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
     && apt-get install -y nodejs \
+    && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/*
 
 # Source ROS2 for interactive terminals

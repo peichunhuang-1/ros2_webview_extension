@@ -1,7 +1,7 @@
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   font-family: var(--vscode-font-family, sans-serif);
   font-size: var(--vscode-font-size, 13px);
   color: var(--vscode-foreground);
@@ -77,12 +77,16 @@
 /* ---- main content ---- */
 .content {
   flex: 1;
-  padding: 12px;
+  padding: 8px 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .hint {
   margin: 0;
+  padding: 0 10px;
   color: var(--vscode-descriptionForeground);
   font-size: 12px;
   line-height: 1.6;
