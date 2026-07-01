@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-webview",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/media/web-content" },
+      "group": "build",
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "build-extension",
+      "type": "npm",
+      "script": "compile",
+      "group": "build",
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "dependsOn": ["build-webview"]
+    },
+    {
+      "label": "build-all",
+      "dependsOn": ["build-extension"],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "watch-extension",
+      "type": "npm",
+      "script": "watch",
+      "isBackground": true,
+      "group": "build",
+      "problemMatcher": "$tsc-watch",
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    }
+  ]
+}

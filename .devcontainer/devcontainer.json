@@ -1,0 +1,30 @@
+{
+  "name": "ros2-webview-extension",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  // VS Code extension host process does not source .bashrc,
+  // so we set ROS2 vars explicitly here for the whole remote session.
+  "remoteEnv": {
+    "AMENT_PREFIX_PATH": "/opt/ros/humble",
+    "ROS_DISTRO": "humble",
+    "ROS_VERSION": "2",
+    "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+    "LD_LIBRARY_PATH": "/opt/ros/humble/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib/x86_64-linux-gnu:${containerEnv:LD_LIBRARY_PATH}",
+    "PATH": "/opt/ros/humble/bin:${containerEnv:PATH}",
+    "PYTHONPATH": "/opt/ros/humble/lib/python3.10/site-packages:${containerEnv:PYTHONPATH}"
+  },
+
+  "postCreateCommand": "npm install && npm install --prefix media/web-content",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "ms-vscode.vscode-typescript-next"
+      ]
+    }
+  }
+}

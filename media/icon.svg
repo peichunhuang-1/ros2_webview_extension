@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <!-- spokes (drawn first, covered at ends by the node circles) -->
+  <line x1="30" y1="21" x2="30" y2="6"  stroke="#4facfe" stroke-width="3" stroke-linecap="round"/>
+  <line x1="30" y1="21" x2="8"  y2="35" stroke="#4facfe" stroke-width="3" stroke-linecap="round"/>
+  <line x1="30" y1="21" x2="52" y2="35" stroke="#4facfe" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- outer nodes -->
+  <circle cx="30" cy="6"  r="5" fill="#00f2fe"/>
+  <circle cx="8"  cy="35" r="5" fill="#00f2fe"/>
+  <circle cx="52" cy="35" r="5" fill="#00f2fe"/>
+
+  <!-- center hub -->
+  <circle cx="30" cy="21" r="7" fill="#4facfe"/>
+
+  <!-- label -->
+  <text x="30" y="56" text-anchor="middle"
+        font-family="'Segoe UI', Arial, sans-serif"
+        font-size="14" font-weight="700" letter-spacing="1"
+        fill="#4facfe">ROS2</text>
+</svg>
