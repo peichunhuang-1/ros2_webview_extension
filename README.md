@@ -50,11 +50,11 @@ The `postCreateCommand` automatically runs `npm install` for both the extension 
 
 ## Building
 
-**Build everything (webview + extension):**
+**Build everything (webview + extension), e.g. before F5 debugging:**
 
 ```sh
 # 1. Build the React webview
-cd media/web-content && npm run build && cd ../..
+npm run build:webview
 
 # 2. Compile the extension
 npm run compile
@@ -65,6 +65,8 @@ npm run compile
 ```sh
 npm run vsix
 ```
+
+`npm run vsix` runs `vscode:prepublish` → `npm run package`, which builds the webview (`build:webview`) and then the extension itself, so the packaged `.vsix` always ships with fresh webview assets. `media/web-content/dist` is gitignored — if you build the webview manually and skip `npm run package`/`npm run vsix` when packaging, the `.vsix` will be missing the webview UI and the sidebar view will fail to load with "An error occurred while loading view: editorWebview".
 
 ---
 

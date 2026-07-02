@@ -90,7 +90,12 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
             vscode.Uri.joinPath(this._extensionUri, 'media', 'web-content', 'dist', 'assets')
         ]
       };
-      webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+      try {
+        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        webviewView.webview.html = this.getErrorHtml(msg);
+      }
       this._view = webviewView;
       if (this.listening) {
         return;
@@ -110,9 +115,12 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
     const assetsPath = path.join(this._extensionUri.fsPath, 'media/web-content/dist/assets');
     const scriptFile = findFile(assetsPath, /^index-.*\.js$/);
     const cssFile = findFile(assetsPath, /^index-.*\.css$/);
+    if (!scriptFile || !cssFile) {
+      throw new Error(`Webview assets not found in ${assetsPath}. Run "npm run build:webview" (or "npm run package") to build media/web-content before packaging the extension.`);
+    }
 
-    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, scriptFile!)));
-    const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, cssFile!)));
+    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, scriptFile)));
+    const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, cssFile)));
 
     const distUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'web-content', 'dist'));
     return `
@@ -127,6 +135,21 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
         </head>
         <body>
           <div id="root"></div>
+        </body>
+      </html>
+    `;
+  }
+
+  private getErrorHtml(message: string): string {
+    return `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        </head>
+        <body>
+          <p style="font-family: sans-serif; padding: 1em;">Failed to load the ROS2 webview UI: ${message}</p>
         </body>
       </html>
     `;
