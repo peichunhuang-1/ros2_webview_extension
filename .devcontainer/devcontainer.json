@@ -19,10 +19,11 @@
 
   "postCreateCommand": "npm install && npm install --prefix media/web-content",
 
-  // Default rosbridge_server WebSocket port (matches ros2Webview.rosbridgeUrl's default),
-  // forwarded explicitly since a raw WebSocket listener isn't reliably auto-detected.
+  // Host networking so rosbridge_server's DDS discovery (rmw_fastrtps_cpp) can reach
+  // ROS2 nodes outside the container without multicast/NAT issues. Container and host
+  // share the same network stack, so no forwardPorts entry is needed (or safe) here.
+  // if you insist using forward uncomment forwardPorts and comment runArgs
   // "forwardPorts": [9090],
-  // Use host networking to allow the container to connect to ROS2 nodes on the host machine. If on MacOS, set "forwardPorts" instead and connect to the host machine's IP address.
   "runArgs": ["--network=host"],
 
   "customizations": {
