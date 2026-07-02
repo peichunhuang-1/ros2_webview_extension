@@ -21,7 +21,9 @@
 
   // Default rosbridge_server WebSocket port (matches ros2Webview.rosbridgeUrl's default),
   // forwarded explicitly since a raw WebSocket listener isn't reliably auto-detected.
-  "forwardPorts": [9090],
+  // "forwardPorts": [9090],
+  // Use host networking to allow the container to connect to ROS2 nodes on the host machine. If on MacOS, set "forwardPorts" instead and connect to the host machine's IP address.
+  "runArgs": ["--network=host"],
 
   "customizations": {
     "vscode": {
