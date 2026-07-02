@@ -1,10 +1,3 @@
-import { VSCodePostTypeDefine } from './bridge_types';
-import type { TopicMessage } from './bridge_types';
-
-function hasType<T extends { type: string }>(msg: unknown, type: T['type']): msg is T {
-  return typeof msg === 'object' && msg !== null && (msg as Record<string, unknown>).type === type;
-}
-
 type PendingRequest = {
   resolve: (result: unknown) => void;
   reject: (err: Error) => void;
@@ -15,11 +8,6 @@ export class VSCode {
   private static vscode = acquireVsCodeApi();
   private static nextId = 0;
   private static pending = new Map<number, PendingRequest>();
-  private static subscriberHandler: ((topic: string, data: unknown) => void) | null = null;
-  
-  static registerSubscriberHandler(fn: (topic: string, data: unknown) => void) {
-    VSCode.subscriberHandler = fn;
-  }
 
   static {
     window.addEventListener('message', (e) => {
@@ -31,11 +19,6 @@ export class VSCode {
         VSCode.pending.delete(msg.__id);
         clearTimeout(entry.timer);
         msg.error ? entry.reject(new Error(msg.error)) : entry.resolve(msg.result);
-        return;
-      }
-
-      if (hasType<TopicMessage>(msg, VSCodePostTypeDefine.SUBSCRIBE_MESSAGE)) {
-        VSCode.subscriberHandler?.(msg.topic, msg.payload);
         return;
       }
     });

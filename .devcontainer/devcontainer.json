@@ -19,6 +19,10 @@
 
   "postCreateCommand": "npm install && npm install --prefix media/web-content",
 
+  // Default rosbridge_server WebSocket port (matches ros2Webview.rosbridgeUrl's default),
+  // forwarded explicitly since a raw WebSocket listener isn't reliably auto-detected.
+  "forwardPorts": [9090],
+
   "customizations": {
     "vscode": {
       "extensions": [

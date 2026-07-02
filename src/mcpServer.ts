@@ -84,7 +84,7 @@ server.registerTool(
   },
 );
 
-const FOCUS_PORT = Number(process.env.ROS2_WEBVIEW_FOCUS_PORT) || 47823;
+const BRIDGE_PORT = Number(process.env.ROS2_WEBVIEW_BRIDGE_PORT) || 47823;
 
 server.registerTool(
   'get_ros2_focus',
@@ -98,18 +98,68 @@ server.registerTool(
   async () => {
     let response: Response;
     try {
-      response = await fetch(`http://127.0.0.1:${FOCUS_PORT}/focus`, { signal: AbortSignal.timeout(2000) });
+      response = await fetch(`http://127.0.0.1:${BRIDGE_PORT}/focus`, { signal: AbortSignal.timeout(2000) });
     } catch (err) {
       return errorResult(
-        `Could not reach the ROS2 Webview panel (${err instanceof Error ? err.message : String(err)}). ` +
-        'Make sure the extension\'s webview panel is open in VS Code.',
+        `Could not reach the ROS2 Webview extension (${err instanceof Error ? err.message : String(err)}). ` +
+        'Make sure VS Code with the extension is running.',
       );
     }
     if (!response.ok) {
-      return errorResult(`ROS2 Webview focus server returned HTTP ${response.status}.`);
+      return errorResult(`ROS2 Webview bridge server returned HTTP ${response.status}.`);
     }
     return textResult(await response.json());
   },
+);
+
+server.registerTool(
+  'open_ros2_gui_preview',
+  {
+    title: 'Preview generated ROS2 GUI',
+    description:
+      'Open (or refresh) a live preview panel in VS Code for a generated web GUI HTML file, so the user can ' +
+      'see and interact with it immediately. Pass the path to the main .html file (absolute, or relative to ' +
+      'the workspace root); referenced local .js/.css/asset files in the same folder are resolved ' +
+      'automatically. The panel auto-reloads whenever the file changes on disk.',
+    inputSchema: {
+      path: z.string().describe('Path to the HTML entry file, absolute or relative to the workspace root.'),
+    },
+  },
+  async ({ path: filePath }) => {
+    let response: Response;
+    try {
+      response = await fetch(`http://127.0.0.1:${BRIDGE_PORT}/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath }),
+        signal: AbortSignal.timeout(2000),
+      });
+    } catch (err) {
+      return errorResult(
+        `Could not reach the ROS2 Webview extension (${err instanceof Error ? err.message : String(err)}). ` +
+        'Make sure VS Code with the extension is running.',
+      );
+    }
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      return errorResult(data.error ?? `HTTP ${response.status}`);
+    }
+    return textResult({ opened: filePath });
+  },
+);
+
+const ROSBRIDGE_URL = process.env.ROS2_WEBVIEW_ROSBRIDGE_URL || 'ws://localhost:9090';
+
+server.registerTool(
+  'get_ros2_rosbridge_url',
+  {
+    title: 'Get rosbridge_server URL',
+    description:
+      'Get the WebSocket URL of the rosbridge_server instance configured for this workspace. Use this when ' +
+      'generating a web-based GUI that talks to ROS2 live (e.g. via roslibjs\' `new ROSLIB.Ros({ url })`) for ' +
+      'topics, services, and actions.',
+  },
+  async () => textResult({ url: ROSBRIDGE_URL }),
 );
 
 async function main() {

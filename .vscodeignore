@@ -2,7 +2,6 @@
 .vscode-test/**
 src/**
 out/**
-node_modules/**
 media/web-content/node_modules/**
 media/web-content/src/**
 media/web-content/public/**

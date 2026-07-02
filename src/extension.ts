@@ -3,13 +3,26 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import WebviewPanelProvider from './WebviewPanelProvider'
-import { startFocusServer, DEFAULT_FOCUS_PORT } from './focusServer';
+import { startLocalBridgeServer, DEFAULT_BRIDGE_PORT } from './localBridgeServer';
+import { PreviewPanelManager } from './previewPanel';
 
 const MCP_SERVER_NAME = 'ros2-interfaces';
 const DISMISSED_KEY = 'ros2Mcp.setupDismissed';
-const FOCUS_PORT_ENV_VAR = 'ROS2_WEBVIEW_FOCUS_PORT';
+const BRIDGE_PORT_ENV_VAR = 'ROS2_WEBVIEW_BRIDGE_PORT';
+const ROSBRIDGE_URL_ENV_VAR = 'ROS2_WEBVIEW_ROSBRIDGE_URL';
 
 type McpJson = { mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }> };
+
+function getRosbridgeUrl(): string {
+  return vscode.workspace.getConfiguration('ros2Webview').get<string>('rosbridgeUrl', 'ws://localhost:9090');
+}
+
+function resolvePreviewPath(filePath: string): vscode.Uri {
+  if (path.isAbsolute(filePath)) { return vscode.Uri.file(filePath); }
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) { throw new Error('No workspace folder open to resolve a relative path against.'); }
+  return vscode.Uri.joinPath(folder.uri, filePath);
+}
 
 async function readMcpJson(uri: vscode.Uri): Promise<McpJson> {
   try {
@@ -24,7 +37,10 @@ function serverEntry(context: vscode.ExtensionContext) {
   return {
     command: process.execPath,
     args: [path.join(context.extensionUri.fsPath, 'dist', 'mcpServer.js')],
-    env: { [FOCUS_PORT_ENV_VAR]: String(DEFAULT_FOCUS_PORT) },
+    env: {
+      [BRIDGE_PORT_ENV_VAR]: String(DEFAULT_BRIDGE_PORT),
+      [ROSBRIDGE_URL_ENV_VAR]: getRosbridgeUrl(),
+    },
   };
 }
 
@@ -76,15 +92,22 @@ export function activate(context: vscode.ExtensionContext) {
       }})
   );
 
-  const focusServer = startFocusServer();
-  context.subscriptions.push({ dispose: () => focusServer.close() });
+  const previewManager = new PreviewPanelManager();
+
+  const bridgeServer = startLocalBridgeServer({
+    openPreview: async (filePath) => previewManager.open(resolvePreviewPath(filePath)),
+  });
+  context.subscriptions.push({ dispose: () => bridgeServer.close() });
 
   context.subscriptions.push(
     vscode.lm.registerMcpServerDefinitionProvider('ros2-webview-extension.mcpServers', {
       provideMcpServerDefinitions: () => {
         const serverPath = path.join(context.extensionUri.fsPath, 'dist', 'mcpServer.js');
         const definition = new vscode.McpStdioServerDefinition('ROS2 Interfaces', process.execPath, [serverPath]);
-        definition.env = { [FOCUS_PORT_ENV_VAR]: String(DEFAULT_FOCUS_PORT) };
+        definition.env = {
+          [BRIDGE_PORT_ENV_VAR]: String(DEFAULT_BRIDGE_PORT),
+          [ROSBRIDGE_URL_ENV_VAR]: getRosbridgeUrl(),
+        };
         return [definition];
       },
     })
@@ -92,6 +115,24 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('ros2-webview-extension.setupClaudeCodeMcp', () => setupClaudeCodeMcp(context))
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ros2-webview-extension.previewGeneratedUi', async (uri?: vscode.Uri) => {
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (target && /\.html?$/i.test(target.fsPath)) {
+        await previewManager.open(target);
+        return;
+      }
+      const picked = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { 'HTML': ['html', 'htm'] },
+        title: 'Select the generated UI to preview',
+      });
+      if (picked?.[0]) {
+        await previewManager.open(picked[0]);
+      }
+    })
   );
 
   void maybeOfferMcpSetup(context);
