@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { ros2Connection } from './ros2Connection';
 import { focusStore, type FocusEntry } from './focusStore';
+import { getWebviewHtml, getWebviewErrorHtml } from './webviewHtml';
 
 
 export default class WebviewPanelProvider implements vscode.WebviewViewProvider {
@@ -45,6 +44,9 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
 
         } else if (e.type === 'ros2/interfaces/list') {
           result = ros2Connection.listInterfaces();
+
+        } else if (e.type === 'ros2/graph/list') {
+          result = await ros2Connection.listGraph();
 
         } else if (e.type === 'ros2/focus/add') {
           result = focusStore.add(e.payload as FocusEntry);
@@ -91,10 +93,10 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
         ]
       };
       try {
-        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+        webviewView.webview.html = getWebviewHtml(webviewView.webview, this._extensionUri, 'sidebar');
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        webviewView.webview.html = this.getErrorHtml(msg);
+        webviewView.webview.html = getWebviewErrorHtml(msg);
       }
       this._view = webviewView;
       if (this.listening) {
@@ -106,52 +108,4 @@ export default class WebviewPanelProvider implements vscode.WebviewViewProvider 
       });
   }
 
-  private getHtmlForWebview(webview: vscode.Webview): string {
-    function findFile(distPath: string, pattern: RegExp) {
-      const files = fs.readdirSync(distPath);
-      return files.find(f => pattern.test(f));
-    }
-
-    const assetsPath = path.join(this._extensionUri.fsPath, 'media/web-content/dist/assets');
-    const scriptFile = findFile(assetsPath, /^index-.*\.js$/);
-    const cssFile = findFile(assetsPath, /^index-.*\.css$/);
-    if (!scriptFile || !cssFile) {
-      throw new Error(`Webview assets not found in ${assetsPath}. Run "npm run build:webview" (or "npm run package") to build media/web-content before packaging the extension.`);
-    }
-
-    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, scriptFile)));
-    const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(assetsPath, cssFile)));
-
-    const distUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'web-content', 'dist'));
-    return `
-      <!doctype html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <base href="${distUri}/" />
-          <script type="module" crossorigin src="${scriptUri}"></script>
-          <link rel="stylesheet" crossorigin href="${styleUri}">
-        </head>
-        <body>
-          <div id="root"></div>
-        </body>
-      </html>
-    `;
-  }
-
-  private getErrorHtml(message: string): string {
-    return `
-      <!doctype html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        </head>
-        <body>
-          <p style="font-family: sans-serif; padding: 1em;">Failed to load the ROS2 webview UI: ${message}</p>
-        </body>
-      </html>
-    `;
-  }
 };

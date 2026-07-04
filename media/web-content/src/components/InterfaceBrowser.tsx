@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ros2Api } from '../ros2_apis/ros2Api';
-import type { FocusEntry, FocusState, InterfaceEntry, InterfaceKind, InterfaceListResult, SchemaResult } from '../ros2_apis/bridge_types';
+import type { FocusEntry, FocusState, InterfaceEntry, InterfaceFocusEntry, InterfaceKind, InterfaceListResult, SchemaResult } from '../ros2_apis/bridge_types';
+import { EMPTY_FOCUS, sameEntry, isInterfaceFocus } from '../ros2_apis/focusUtils';
+import { PlusIcon, TrashIcon } from './icons';
 import './InterfaceBrowser.css';
 
 const TABS: { kind: InterfaceKind; label: string }[] = [
@@ -8,8 +10,6 @@ const TABS: { kind: InterfaceKind; label: string }[] = [
   { kind: 'srv',    label: 'Services' },
   { kind: 'action', label: 'Actions' },
 ];
-
-const EMPTY_FOCUS: FocusState = { items: [], active: null };
 
 function entriesFor(list: InterfaceListResult | null, kind: InterfaceKind): InterfaceEntry[] {
   if (!list) { return []; }
@@ -20,29 +20,6 @@ function fetchSchema(kind: InterfaceKind, pkg: string, name: string): Promise<Sc
   if (kind === 'msg')    { return ros2Api.getMsgSchema(pkg, name); }
   if (kind === 'srv')    { return ros2Api.getSrvSchema(pkg, name); }
   return ros2Api.getActionSchema(pkg, name);
-}
-
-function sameEntry(a: FocusEntry, b: FocusEntry): boolean {
-  return a.kind === b.kind && a.pkg === b.pkg && a.name === b.name;
-}
-
-function PlusIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M3 4h10M6.5 4V2.6a.6.6 0 0 1 .6-.6h1.8a.6.6 0 0 1 .6.6V4M4.5 4l.6 9.2a1 1 0 0 0 1 .8h3.8a1 1 0 0 0 1-.8L11.5 4"
-        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export default function InterfaceBrowser() {
@@ -89,12 +66,12 @@ export default function InterfaceBrowser() {
   }
 
   function toggleFocus(entry: InterfaceEntry, isPinned: boolean) {
-    const focusEntry: FocusEntry = { kind, pkg: entry.pkg, name: entry.name };
+    const focusEntry: FocusEntry = { source: 'interface', kind, pkg: entry.pkg, name: entry.name };
     const request = isPinned ? ros2Api.removeFocus(focusEntry) : ros2Api.addFocus(focusEntry);
     request.then(setFocus).catch(() => {});
   }
 
-  function selectFocusEntry(entry: FocusEntry) {
+  function selectFocusEntry(entry: InterfaceFocusEntry) {
     ros2Api.setActiveFocus(entry).then(setFocus).catch(() => {});
     preview(entry.kind, { pkg: entry.pkg, name: entry.name });
   }
@@ -107,11 +84,13 @@ export default function InterfaceBrowser() {
     return <p className="hint interface-error">Failed to list interfaces: {loadError}</p>;
   }
 
+  const interfaceFocusItems = focus.items.filter(isInterfaceFocus);
+
   return (
     <div className="interface-browser">
-      {focus.items.length > 0 && (
+      {interfaceFocusItems.length > 0 && (
         <div className="focus-list">
-          {focus.items.map(entry => {
+          {interfaceFocusItems.map(entry => {
             const id = `${entry.kind}:${entry.pkg}/${entry.name}`;
             const isActive = focus.active !== null && sameEntry(focus.active, entry);
             return (
@@ -161,7 +140,7 @@ export default function InterfaceBrowser() {
           {filtered.map(entry => {
             const id = `${entry.pkg}/${entry.name}`;
             const isSelected = selected && selected.pkg === entry.pkg && selected.name === entry.name;
-            const isPinned = focus.items.some(i => i.kind === kind && i.pkg === entry.pkg && i.name === entry.name);
+            const isPinned = interfaceFocusItems.some(i => i.kind === kind && i.pkg === entry.pkg && i.name === entry.name);
             return (
               <li key={id} className="interface-row">
                 <button

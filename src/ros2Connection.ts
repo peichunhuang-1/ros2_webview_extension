@@ -1,4 +1,5 @@
 import { isRos2Available, readMsgSchema, readSrvSchema, readActionSchema, listInterfaces, type JsonSchema, type InterfaceList } from './schemaGen';
+import { listGraph, type GraphList } from './ros2Graph';
 
 type ConnectionStatus = 'disconnected' | 'connected' | 'unavailable';
 
@@ -67,6 +68,11 @@ class Ros2Connection {
       this.interfaceList = listInterfaces();
     }
     return this.interfaceList;
+  }
+
+  // Not cached: reflects the live graph, which changes as nodes come and go.
+  listGraph(): Promise<GraphList> {
+    return listGraph();
   }
 }
 

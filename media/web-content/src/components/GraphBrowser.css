@@ -1,0 +1,50 @@
+.graph-toolbar {
+  display: flex;
+  gap: 4px;
+}
+
+.graph-search {
+  flex: 1;
+}
+
+.graph-refresh {
+  flex-shrink: 0;
+  border: 1px solid var(--vscode-input-border, transparent);
+  background: var(--vscode-input-background);
+  color: var(--vscode-foreground);
+  border-radius: 3px;
+  padding: 0 8px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.graph-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.graph-name {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.graph-types {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.graph-detail-types {
+  margin: 0;
+  padding: 6px 8px 0;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+}

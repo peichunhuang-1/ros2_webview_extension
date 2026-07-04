@@ -3,8 +3,10 @@ import './App.css';
 import { ros2Api } from './ros2_apis/ros2Api';
 import type { ConnectionStatus } from './ros2_apis/bridge_types';
 import InterfaceBrowser from './components/InterfaceBrowser';
+import GraphBrowser from './components/GraphBrowser';
 
 type ConnectState = 'idle' | 'connecting' | ConnectionStatus;
+type View = 'interfaces' | 'graph';
 
 function statusLabel(s: ConnectState): string {
   switch (s) {
@@ -27,6 +29,7 @@ function statusColor(s: ConnectState): string {
 export default function App() {
   const [connectState, setConnectState] = useState<ConnectState>('idle');
   const [distro, setDistro] = useState<string | null>(null);
+  const [view, setView] = useState<View>('interfaces');
 
   async function handleConnect() {
     if (connectState === 'connected') {
@@ -79,7 +82,25 @@ export default function App() {
             Press <strong>Connect</strong> to detect the ROS2 environment and enable schema lookup.
           </p>
         )}
-        {isConnected && <InterfaceBrowser />}
+        {isConnected && (
+          <>
+            <div className="view-tabs">
+              <button
+                className={`view-tab ${view === 'interfaces' ? 'active' : ''}`}
+                onClick={() => setView('interfaces')}
+              >
+                Interfaces
+              </button>
+              <button
+                className={`view-tab ${view === 'graph' ? 'active' : ''}`}
+                onClick={() => setView('graph')}
+              >
+                Live Graph
+              </button>
+            </div>
+            {view === 'interfaces' ? <InterfaceBrowser /> : <GraphBrowser />}
+          </>
+        )}
       </main>
     </div>
   );

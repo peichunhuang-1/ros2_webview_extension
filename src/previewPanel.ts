@@ -52,6 +52,11 @@ export class PreviewPanelManager {
 
     // Content is locally authored (by the user or Claude), so the CSP here just scopes
     // script/style/connect sources to this one panel rather than trying to sandbox untrusted content.
+    //
+    // No frame-src: an earlier design that composed a generated GUI's panels via one
+    // <iframe> per panel was dropped after repeated CSP failures, since a cross-document
+    // iframe navigation to a local file gets its own pseudo-origin in a VS Code webview
+    // that doesn't treat sibling resources as same-origin the way a normal web server would.
     const csp = [
       `default-src 'none'`,
       `img-src ${panel.webview.cspSource} https: data:`,

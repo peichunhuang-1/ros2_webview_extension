@@ -1,0 +1,461 @@
+.layout-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.layout-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border, #333);
+  background: var(--vscode-sideBar-background);
+}
+
+.layout-toolbar-left,
+.layout-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.layout-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: var(--vscode-button-hoverBackground);
+  }
+}
+
+/* ---- tabs ---- */
+.layout-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+/* ---- zoom controls ---- */
+.layout-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.layout-zoom-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vscode-panel-border, #333);
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
+}
+
+.layout-zoom-pct {
+  min-width: 42px;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+
+  &:hover {
+    color: var(--vscode-foreground);
+  }
+}
+
+.layout-tab {
+  padding: 4px 12px;
+  border: 1px solid var(--vscode-panel-border, #333);
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 3px;
+
+  &:hover {
+    color: var(--vscode-foreground);
+  }
+  &.active {
+    color: var(--vscode-foreground);
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder, #007acc);
+  }
+}
+
+/* ---- canvas ---- */
+/* Padding is set inline (computed from viewport vs. canvas size) rather
+   than centered with flex/margin, so the canvas stays fully reachable by
+   scrolling even when zoomed in past the viewport size — see LayoutEditor.tsx. */
+.layout-canvas-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.layout-canvas-stage {
+  position: relative;
+}
+
+.layout-canvas {
+  position: relative;
+  top: 0;
+  left: 0;
+  background:
+    linear-gradient(90deg, var(--vscode-panel-border, #333) 1px, transparent 1px) 0 0 / var(--grid-size, 40px) var(--grid-size, 40px),
+    linear-gradient(var(--vscode-panel-border, #333) 1px, transparent 1px) 0 0 / var(--grid-size, 40px) var(--grid-size, 40px),
+    var(--vscode-editorWidget-background, #1e1e1e);
+  background-blend-mode: overlay;
+  border: 1px solid var(--vscode-panel-border, #333);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  transform-origin: top left;
+}
+
+/* ---- smart-guide alignment lines ---- */
+.layout-guide {
+  position: absolute;
+  background: #ff2d78;
+  pointer-events: none;
+  z-index: 5;
+}
+.layout-guide-v { top: 0; bottom: 0; width: 1px; }
+.layout-guide-h { left: 0; right: 0; height: 1px; }
+
+/* ---- config tab ---- */
+.layout-config {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  padding: 16px;
+
+  .hint {
+    padding: 0;
+  }
+}
+
+.layout-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(100, 150, 255, 0.15));
+  border: 1px solid var(--vscode-focusBorder, #007acc);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.layout-panel-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.layout-panel-label {
+  font-weight: 600;
+  font-size: 12px;
+  z-index: 1;
+}
+
+.layout-panel-binding {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  z-index: 1;
+}
+
+/* Visible dot is small, but the actual hit target (this box) is much
+   bigger — small corner handles were very hard to land a pointer on. */
+.layout-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  touch-action: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: var(--vscode-focusBorder, #007acc);
+    border-radius: 2px;
+  }
+}
+.layout-handle-nw { top: -9px; left: -9px; cursor: nwse-resize; }
+.layout-handle-se { bottom: -9px; right: -9px; cursor: nwse-resize; }
+.layout-handle-ne { top: -9px; right: -9px; cursor: nesw-resize; }
+.layout-handle-sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
+
+/* ---- context menu ---- */
+.layout-context-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #333));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+
+  button {
+    padding: 5px 10px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+    }
+  }
+}
+
+.layout-context-menu-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #333));
+}
+
+/* ---- edit modal ---- */
+.layout-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+
+.layout-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-panel-border, #333);
+  border-radius: 6px;
+}
+
+.layout-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.layout-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.layout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+
+  input, textarea, select {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 6px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, #333));
+    border-radius: 3px;
+  }
+
+  textarea {
+    min-height: 50px;
+    resize: vertical;
+  }
+}
+
+.layout-bindings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.layout-binding-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+
+  select {
+    flex: 1;
+    min-width: 74px;
+  }
+}
+
+.layout-add-binding-btn {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-panel-border, #333);
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
+}
+
+.layout-searchable-select {
+  flex: 2;
+  min-width: 140px;
+
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 6px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, #333));
+    border-radius: 3px;
+  }
+}
+
+/* Portaled to <body> and positioned inline via getBoundingClientRect (see
+   SearchableSelect) so it's never clipped by the edit modal's own scrollbar. */
+.layout-searchable-dropdown {
+  position: fixed;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border, #333));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.layout-searchable-option {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.highlighted,
+  &:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
+}
+
+.layout-searchable-empty {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.layout-image-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout-image-name {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-image-remove {
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  display: flex;
+}
+
+.layout-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.layout-delete-btn {
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #a1260d);
+  background: transparent;
+  color: var(--vscode-errorForeground, #f48771);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.layout-close-btn {
+  padding: 4px 12px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: var(--vscode-button-hoverBackground);
+  }
+}

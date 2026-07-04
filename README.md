@@ -102,10 +102,11 @@ Then start debugging once. After saving a file, reload the Extension Development
 ```
 .devcontainer/          # Docker + devcontainer config (ROS2 Humble + Node.js 20)
 src/
-  extension.ts          # Extension entry point
+  extension.ts          # Extension entry point; also sets up the Claude Code MCP integration
   WebviewPanelProvider.ts  # Webview host + message router
   ros2Connection.ts     # Connect/disconnect + in-memory schema cache
   schemaGen.ts          # Parses .msg/.srv/.action files → JSON schema
+  mcpServer.ts          # MCP server ("ros2-interfaces") exposing ROS2 introspection to Claude
   vendor.d.ts           # Type stubs for rclnodejs subpath imports
 media/web-content/      # React webview (Vite)
   src/
@@ -132,3 +133,20 @@ media/web-content/      # React webview (Vite)
 ```
 
 Parsed schemas are cached in memory for the session so each type is only read once.
+
+---
+
+## Claude Code MCP integration
+
+The extension bundles an MCP server (`ros2-interfaces`, `src/mcpServer.ts`) so Claude Code can look up ROS2
+interfaces and the live graph directly. Run **"ROS2 Webview: Set Up Claude Code MCP Integration"** from the
+Command Palette in a workspace to register it — this writes `.mcp.json` and grants the server/its tools
+pre-approved permission in `.claude/settings.local.json`, so you aren't prompted to approve each call.
+
+Tools exposed:
+- `list_ros2_interfaces` — installed `.msg`/`.srv`/`.action` definitions
+- `list_ros2_graph` — topics/services/actions currently running
+- `get_ros2_msg_schema` / `get_ros2_srv_schema` / `get_ros2_action_schema` — field schemas for a given type
+- `get_ros2_focus` — whatever the user currently has selected/pinned in the Webview sidebar
+- `get_ros2_rosbridge_url` — the configured rosbridge WebSocket URL
+- `open_ros2_gui_preview` — opens/refreshes a live preview panel for a generated HTML file

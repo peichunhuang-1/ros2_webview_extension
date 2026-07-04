@@ -1,0 +1,10 @@
+{
+  "enabledMcpjsonServers": [
+    "ros2-interfaces"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__ros2-interfaces__*"
+    ]
+  }
+}

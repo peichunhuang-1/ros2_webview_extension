@@ -21,6 +21,10 @@
         "command": "ros2-webview-extension.previewGeneratedUi",
         "title": "ROS2 Webview: Preview Generated UI",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "ros2-webview-extension.newLayoutFile",
+        "title": "ROS2 Webview: New Layout Editor File"
       }
     ],
     "menus": {
@@ -55,6 +59,15 @@
       {
         "id": "ros2-webview-extension.mcpServers",
         "label": "ROS2 Interfaces"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "ros2-webview-extension.layoutEditor",
+        "displayName": "ROS2 Webview Layout Editor",
+        "selector": [
+          { "filenamePattern": "*.ros2ui.json" }
+        ]
       }
     ],
     "configuration": {

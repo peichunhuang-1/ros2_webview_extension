@@ -1,10 +1,23 @@
-export type InterfaceKind = 'msg' | 'srv' | 'action';
+export type InterfaceFocusKind = 'msg' | 'srv' | 'action';
+export type GraphFocusKind = 'topic' | 'service' | 'action';
 
-export interface FocusEntry {
-  kind: InterfaceKind;
-  pkg:  string;
-  name: string;
+// An installed interface definition, e.g. geometry_msgs/Twist.
+export interface InterfaceFocusEntry {
+  source: 'interface';
+  kind:   InterfaceFocusKind;
+  pkg:    string;
+  name:   string;
 }
+
+// A topic/service/action currently running in the live ROS2 graph.
+export interface GraphFocusEntry {
+  source: 'graph';
+  kind:   GraphFocusKind;
+  name:   string;
+  types:  string[];
+}
+
+export type FocusEntry = InterfaceFocusEntry | GraphFocusEntry;
 
 export interface FocusState {
   items:  FocusEntry[];
@@ -12,7 +25,7 @@ export interface FocusState {
 }
 
 function keyOf(e: FocusEntry): string {
-  return `${e.kind}:${e.pkg}/${e.name}`;
+  return e.source === 'interface' ? `interface:${e.kind}:${e.pkg}/${e.name}` : `graph:${e.kind}:${e.name}`;
 }
 
 class FocusStore {

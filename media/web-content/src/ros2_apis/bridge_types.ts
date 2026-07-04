@@ -8,11 +8,18 @@ export class VSCodePostTypeDefine {
   static SCHEMA_ACTION = "ros2/schema/action";
   // interfaces
   static LIST_INTERFACES = "ros2/interfaces/list";
+  // live graph (currently running topics/services/actions)
+  static LIST_GRAPH = "ros2/graph/list";
   // focus (interfaces pinned/selected for Claude to read via MCP)
   static FOCUS_ADD        = "ros2/focus/add";
   static FOCUS_REMOVE     = "ros2/focus/remove";
   static FOCUS_SETACTIVE  = "ros2/focus/setActive";
   static FOCUS_LIST       = "ros2/focus/list";
+  // layout editor (pushed messages + upload request, see layoutApi.ts)
+  static LAYOUT_READY        = "layout/ready";
+  static LAYOUT_INIT         = "layout/init";
+  static LAYOUT_UPDATE       = "layout/update";
+  static LAYOUT_UPLOAD_IMAGE = "layout/uploadImage";
 }
 
 // --- Connection / Schema ---
@@ -46,15 +53,82 @@ export type InterfaceListResult = {
   actions: InterfaceEntry[];
 };
 
-// --- Focus (pinned interfaces, readable by Claude via MCP) ---
+// --- Live graph (currently running topics/services/actions) ---
 
-export type FocusEntry = {
-  kind: InterfaceKind;
-  pkg:  string;
-  name: string;
+export type GraphKind = 'topic' | 'service' | 'action';
+
+export type GraphEntry = {
+  name:  string;
+  types: string[];
 };
+
+export type GraphListResult = {
+  topics:   GraphEntry[];
+  services: GraphEntry[];
+  actions:  GraphEntry[];
+};
+
+// --- Focus (pinned interfaces/live graph entries, readable by Claude via MCP) ---
+
+export type InterfaceFocusEntry = {
+  source: 'interface';
+  kind:   InterfaceKind;
+  pkg:    string;
+  name:   string;
+};
+
+export type GraphFocusEntry = {
+  source: 'graph';
+  kind:   GraphKind;
+  name:   string;
+  types:  string[];
+};
+
+export type FocusEntry = InterfaceFocusEntry | GraphFocusEntry;
 
 export type FocusState = {
   items:  FocusEntry[];
   active: FocusEntry | null;
+};
+
+// --- Layout editor (2D panel-arrangement wireframe spec) ---
+
+export type LayoutPanel = {
+  id:      string;
+  label:   string;
+  x:       number;
+  y:       number;
+  width:   number;
+  height:  number;
+  bindings: FocusEntry[];
+  image?:  string;
+  notes?:  string;
+  // Stacking order among overlapping panels — higher draws on top. Optional
+  // so older layout files without it still parse; treat as 0 when absent.
+  layer?:  number;
+};
+
+export type LayoutDocument = {
+  version: 1;
+  canvas:  { width: number; height: number; gridSize: number };
+  panels:  LayoutPanel[];
+};
+
+// `imageUris` maps each panel's stored (workspace-relative) `image` path to a
+// webview-safe URI — relative paths on disk aren't directly renderable as an
+// <img src>, so the provider resolves them via `webview.asWebviewUri` and
+// ships the resolved map alongside the raw document on every `layout/init`.
+export type LayoutInitPayload = {
+  doc:       LayoutDocument;
+  imageUris: Record<string, string>;
+};
+
+export type UploadImageRequest = {
+  dataUri:       string;
+  suggestedName: string;
+};
+
+export type UploadImageResult = {
+  relativePath: string;
+  webviewUri:   string;
 };

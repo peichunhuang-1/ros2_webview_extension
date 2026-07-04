@@ -3,18 +3,26 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import WebviewPanelProvider from './WebviewPanelProvider'
-import { startLocalBridgeServer, DEFAULT_BRIDGE_PORT } from './localBridgeServer';
+import { startLocalBridgeServer } from './localBridgeServer';
 import { PreviewPanelManager } from './previewPanel';
+import LayoutEditorProvider, { LAYOUT_EDITOR_VIEW_TYPE } from './layoutEditorProvider';
+import { emptyLayoutDocument } from './layoutTypes';
 
 const MCP_SERVER_NAME = 'ros2-interfaces';
 const DISMISSED_KEY = 'ros2Mcp.setupDismissed';
-const BRIDGE_PORT_ENV_VAR = 'ROS2_WEBVIEW_BRIDGE_PORT';
+const WORKSPACE_ENV_VAR = 'ROS2_WEBVIEW_WORKSPACE';
 const ROSBRIDGE_URL_ENV_VAR = 'ROS2_WEBVIEW_ROSBRIDGE_URL';
 
 type McpJson = { mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }> };
 
 function getRosbridgeUrl(): string {
   return vscode.workspace.getConfiguration('ros2Webview').get<string>('rosbridgeUrl', 'ws://localhost:9090');
+}
+
+// Key for the bridge port registry file (see bridgeRegistry.ts) — must match
+// between the extension host (writer) and the MCP server process (reader).
+function getWorkspaceKey(): string {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? 'no-workspace';
 }
 
 function resolvePreviewPath(filePath: string): vscode.Uri {
@@ -38,10 +46,98 @@ function serverEntry(context: vscode.ExtensionContext) {
     command: process.execPath,
     args: [path.join(context.extensionUri.fsPath, 'dist', 'mcpServer.js')],
     env: {
-      [BRIDGE_PORT_ENV_VAR]: String(DEFAULT_BRIDGE_PORT),
+      [WORKSPACE_ENV_VAR]: getWorkspaceKey(),
       [ROSBRIDGE_URL_ENV_VAR]: getRosbridgeUrl(),
     },
   };
+}
+
+type ClaudeSettingsJson = {
+  enabledMcpjsonServers?: string[];
+  permissions?: { allow?: string[] } & Record<string, unknown>;
+} & Record<string, unknown>;
+
+// Claude Code gates a project MCP server behind two separate approvals: first
+// whether to trust the server declared in .mcp.json at all (enabledMcpjsonServers),
+// then — once trusted — whether to approve each individual tool call
+// (permissions.allow). Both have to be granted, or the user still gets
+// prompted at the first gate even though the second is wide open. "Set Up"
+// grants both up front rather than leaving the user to discover either by hand.
+//
+// Written to settings.local.json rather than settings.json: Claude Code
+// requires the user to click through a one-time "trust this folder" prompt
+// before it honors *project*-tier settings (committed, potentially authored
+// by someone else) — but settings.local.json is a different tier, always
+// treated as the user's own, so these grants take effect immediately with
+// no extra prompt.
+async function grantClaudeCodeMcpPermission(folder: vscode.WorkspaceFolder): Promise<void> {
+  const settingsUri = vscode.Uri.joinPath(folder.uri, '.claude', 'settings.local.json');
+  const permissionRule = `mcp__${MCP_SERVER_NAME}__*`;
+
+  let settings: ClaudeSettingsJson = {};
+  try {
+    const bytes = await vscode.workspace.fs.readFile(settingsUri);
+    settings = JSON.parse(Buffer.from(bytes).toString('utf8')) as ClaudeSettingsJson;
+  } catch {
+    // No existing file (or unreadable) — start fresh rather than fail setup.
+  }
+
+  const enabledServers = (settings.enabledMcpjsonServers ??= []);
+  if (!enabledServers.includes(MCP_SERVER_NAME)) {
+    enabledServers.push(MCP_SERVER_NAME);
+  }
+
+  settings.permissions ??= {};
+  const allow = (settings.permissions.allow ??= []);
+  if (!allow.includes(permissionRule)) {
+    allow.push(permissionRule);
+  }
+
+  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, '.claude'));
+  await vscode.workspace.fs.writeFile(settingsUri, Buffer.from(JSON.stringify(settings, null, 2) + '\n', 'utf8'));
+}
+
+async function readExtensionFile(context: vscode.ExtensionContext, ...segments: string[]): Promise<string> {
+  const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(context.extensionUri, ...segments));
+  return Buffer.from(bytes).toString('utf8');
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const CLAUDE_MD_BLOCK_START = '<!-- ros2-webview-extension: managed block, edits here are overwritten by "Set Up" -->';
+const CLAUDE_MD_BLOCK_END = '<!-- /ros2-webview-extension -->';
+
+// CLAUDE.md is project-scoped — Claude Code only reads it from whatever workspace it's
+// pointed at, so bundling it with the extension does nothing for a user's own ROS2 project
+// until it's copied there. "Set Up" does that, the same way it already does for .mcp.json
+// and settings.local.json above.
+//
+// The MCP server's own `instructions` field (see mcpServer.ts) carries a condensed version
+// of this same guidance unconditionally, over the protocol itself, regardless of whether the
+// user ever runs "Set Up" — this file-based copy is the fuller version for those who do.
+async function installClaudeMdSection(folder: vscode.WorkspaceFolder, context: vscode.ExtensionContext): Promise<void> {
+  const claudeMdUri = vscode.Uri.joinPath(folder.uri, 'CLAUDE.md');
+  const sectionBody = (await readExtensionFile(context, 'CLAUDE.md')).trim();
+  const block = `${CLAUDE_MD_BLOCK_START}\n${sectionBody}\n${CLAUDE_MD_BLOCK_END}`;
+
+  let existing = '';
+  try {
+    const bytes = await vscode.workspace.fs.readFile(claudeMdUri);
+    existing = Buffer.from(bytes).toString('utf8');
+  } catch {
+    // No existing file — the block becomes the entire content.
+  }
+
+  const blockRe = new RegExp(`${escapeRegExp(CLAUDE_MD_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_MD_BLOCK_END)}`);
+  const next = blockRe.test(existing)
+    ? existing.replace(blockRe, block)
+    : existing
+      ? `${existing.trimEnd()}\n\n${block}\n`
+      : `${block}\n`;
+
+  await vscode.workspace.fs.writeFile(claudeMdUri, Buffer.from(next, 'utf8'));
 }
 
 async function setupClaudeCodeMcp(context: vscode.ExtensionContext): Promise<void> {
@@ -57,7 +153,12 @@ async function setupClaudeCodeMcp(context: vscode.ExtensionContext): Promise<voi
   config.mcpServers[MCP_SERVER_NAME] = serverEntry(context);
 
   await vscode.workspace.fs.writeFile(mcpJsonUri, Buffer.from(JSON.stringify(config, null, 2) + '\n', 'utf8'));
-  vscode.window.showInformationMessage('ROS2 MCP server registered in .mcp.json. Restart Claude Code (or run /mcp) to pick it up.');
+  await grantClaudeCodeMcpPermission(folder);
+  await installClaudeMdSection(folder, context);
+  vscode.window.showInformationMessage(
+    'ROS2 MCP server registered in .mcp.json (tool calls pre-approved) with CLAUDE.md guidance installed. ' +
+    'Restart Claude Code (or run /mcp) to pick it up.',
+  );
 }
 
 async function maybeOfferMcpSetup(context: vscode.ExtensionContext): Promise<void> {
@@ -94,10 +195,19 @@ export function activate(context: vscode.ExtensionContext) {
 
   const previewManager = new PreviewPanelManager();
 
-  const bridgeServer = startLocalBridgeServer({
-    openPreview: async (filePath) => previewManager.open(resolvePreviewPath(filePath)),
-  });
-  context.subscriptions.push({ dispose: () => bridgeServer.close() });
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      LAYOUT_EDITOR_VIEW_TYPE,
+      new LayoutEditorProvider(context.extensionUri),
+      { webviewOptions: { retainContextWhenHidden: true } },
+    )
+  );
+
+  const bridgeServer = startLocalBridgeServer(
+    { openPreview: async (filePath) => previewManager.open(resolvePreviewPath(filePath)) },
+    getWorkspaceKey(),
+  );
+  context.subscriptions.push({ dispose: () => bridgeServer.dispose() });
 
   context.subscriptions.push(
     vscode.lm.registerMcpServerDefinitionProvider('ros2-webview-extension.mcpServers', {
@@ -105,7 +215,7 @@ export function activate(context: vscode.ExtensionContext) {
         const serverPath = path.join(context.extensionUri.fsPath, 'dist', 'mcpServer.js');
         const definition = new vscode.McpStdioServerDefinition('ROS2 Interfaces', process.execPath, [serverPath]);
         definition.env = {
-          [BRIDGE_PORT_ENV_VAR]: String(DEFAULT_BRIDGE_PORT),
+          [WORKSPACE_ENV_VAR]: getWorkspaceKey(),
           [ROSBRIDGE_URL_ENV_VAR]: getRosbridgeUrl(),
         };
         return [definition];
@@ -132,6 +242,38 @@ export function activate(context: vscode.ExtensionContext) {
       if (picked?.[0]) {
         await previewManager.open(picked[0]);
       }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ros2-webview-extension.newLayoutFile', async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        vscode.window.showErrorMessage('Open a folder/workspace first to create a layout file.');
+        return;
+      }
+
+      const name = await vscode.window.showInputBox({
+        prompt: 'Name for the new layout file',
+        value: 'ui-layout',
+        validateInput: v => v.trim() ? null : 'Enter a name.',
+      });
+      if (!name) { return; }
+
+      const fileName = name.endsWith('.ros2ui.json') ? name : `${name}.ros2ui.json`;
+      const uri = vscode.Uri.joinPath(folder.uri, fileName);
+
+      try {
+        await vscode.workspace.fs.stat(uri);
+        vscode.window.showErrorMessage(`${fileName} already exists.`);
+        return;
+      } catch {
+        // Doesn't exist yet — good, create it.
+      }
+
+      const content = JSON.stringify(emptyLayoutDocument(), null, 2) + '\n';
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+      await vscode.commands.executeCommand('vscode.openWith', uri, LAYOUT_EDITOR_VIEW_TYPE);
     })
   );
 

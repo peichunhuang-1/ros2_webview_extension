@@ -5,6 +5,7 @@ import {
   type SchemaRequest,
   type SchemaResult,
   type InterfaceListResult,
+  type GraphListResult,
   type FocusEntry,
   type FocusState,
 } from './bridge_types';
@@ -32,6 +33,10 @@ export const ros2Api = {
 
   listInterfaces(): Promise<InterfaceListResult> {
     return VSCode.request<InterfaceListResult>(VSCodePostTypeDefine.LIST_INTERFACES);
+  },
+
+  listGraph(): Promise<GraphListResult> {
+    return VSCode.request<GraphListResult>(VSCodePostTypeDefine.LIST_GRAPH);
   },
 
   addFocus(entry: FocusEntry): Promise<FocusState> {

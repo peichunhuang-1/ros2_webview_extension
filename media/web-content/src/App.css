@@ -91,3 +91,30 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* ---- view switcher (Interfaces / Live Graph) ---- */
+.view-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px 8px;
+}
+
+.view-tab {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-panel-border, #333);
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 3px;
+
+  &:hover {
+    color: var(--vscode-foreground);
+  }
+  &.active {
+    color: var(--vscode-foreground);
+    background: var(--vscode-list-activeSelectionBackground);
+    border-color: var(--vscode-focusBorder, #007acc);
+  }
+}
