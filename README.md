@@ -107,6 +107,7 @@ src/
   ros2Connection.ts     # Connect/disconnect + in-memory schema cache
   schemaGen.ts          # Parses .msg/.srv/.action files → JSON schema
   mcpServer.ts          # MCP server ("ros2-interfaces") exposing ROS2 introspection to Claude
+  scaffoldGen.ts        # Generates the GUI scaffold (dashboard.html + per-panel files) from a layout
   vendor.d.ts           # Type stubs for rclnodejs subpath imports
 media/web-content/      # React webview (Vite)
   src/
@@ -136,6 +137,39 @@ Parsed schemas are cached in memory for the session so each type is only read on
 
 ---
 
+## Generating a GUI from a layout
+
+Design the layout visually in the Layout Editor (`*.ros2ui.json`), then run **"ROS2 Webview: Generate
+GUI Scaffold"** (Command Palette, the title-bar button on the layout editor, or the `generate_gui_scaffold`
+MCP tool) instead of asking Claude to hand-write the whole page. It deterministically produces, next to
+`dashboard.ros2ui.json`:
+
+- `dashboard.html` — the full page, with one absolutely-positioned `<div>` per panel (position, size,
+  and stacking order baked in exactly as specified), each rendered into its own Shadow DOM. This file
+  is a build artifact: it's fully regenerated every time the command runs and should never be hand-edited.
+- `dashboard.panels/<panelId>/{panel.html, style.css, script.js}` — one folder per panel, created once.
+  This is the only place to author content — the layout's `notes` and `bindings` for that panel are
+  included in the generated comments to give Claude context. `script.js` defines
+  `window['mountPanel_<panelId>'] = function(shadowRoot, ros, bindings) {...}`, called once a shared
+  `ROSLIB.Ros` connection is ready; Shadow DOM keeps each panel's CSS/DOM isolated from every other
+  panel, so panels can be styled and scripted independently without collisions.
+
+Re-run the command any time panels are added, removed, moved, or resized in the Layout Editor —
+existing panel folders are left untouched, and only new panels get stub files. You don't need to
+remember to re-run it before previewing, though: opening (or refreshing) the preview via
+`open_ros2_gui_preview` / "ROS2 Webview: Preview Generated UI" automatically regenerates
+`dashboard.html` from the layout and the current `panel.html`/`style.css`/`script.js` contents first,
+so it can never show a stale snapshot from before your last edit.
+
+The generated page connects to `rosbridge_server` (via `roslibjs`) at the URL configured in
+`ros2Webview.rosbridgeUrl` — that process is not started by this extension, so it must already be
+running separately (e.g. `ros2 launch rosbridge_server rosbridge_websocket_launch.xml`) for panels to
+receive live data. A small status badge in the bottom-right corner of the generated page reports the
+connection state (connecting / connected / error) so a failed connection is visible on the page itself,
+not just in the DevTools console.
+
+---
+
 ## Claude Code MCP integration
 
 The extension bundles an MCP server (`ros2-interfaces`, `src/mcpServer.ts`) so Claude Code can look up ROS2
@@ -150,3 +184,4 @@ Tools exposed:
 - `get_ros2_focus` — whatever the user currently has selected/pinned in the Webview sidebar
 - `get_ros2_rosbridge_url` — the configured rosbridge WebSocket URL
 - `open_ros2_gui_preview` — opens/refreshes a live preview panel for a generated HTML file
+- `generate_gui_scaffold` — generates the GUI scaffold (`dashboard.html` + per-panel files) from a `.ros2ui.json` layout

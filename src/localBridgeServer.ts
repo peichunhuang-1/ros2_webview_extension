@@ -4,6 +4,7 @@ import { writeBridgeRegistry, clearBridgeRegistry } from './bridgeRegistry';
 
 export interface LocalBridgeDeps {
   openPreview(filePath: string): Promise<void>;
+  generateGuiScaffold(filePath: string): Promise<{ htmlPath: string; message: string }>;
 }
 
 export interface LocalBridgeHandle {
@@ -44,6 +45,27 @@ export function startLocalBridgeServer(deps: LocalBridgeDeps, workspacePath: str
           .then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
+          })
+          .catch((err: unknown) => {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          });
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/scaffold') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        (async () => {
+          const { path: filePath } = JSON.parse(body || '{}') as { path?: string };
+          if (!filePath) { throw new Error('Missing "path" in request body.'); }
+          return deps.generateGuiScaffold(filePath);
+        })()
+          .then((result) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
           })
           .catch((err: unknown) => {
             res.writeHead(400, { 'Content-Type': 'application/json' });

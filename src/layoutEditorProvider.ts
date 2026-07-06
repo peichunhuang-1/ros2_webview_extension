@@ -2,33 +2,13 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { getWebviewHtml, getWebviewErrorHtml } from './webviewHtml';
-import { emptyLayoutDocument, type LayoutDocument, type LayoutPanel } from './layoutTypes';
-import type { FocusEntry } from './focusStore';
+import { parseLayoutDocumentText, type LayoutDocument } from './layoutTypes';
 import { ros2Connection } from './ros2Connection';
 
 export const LAYOUT_EDITOR_VIEW_TYPE = 'ros2-webview-extension.layoutEditor';
 
-// Layout files written before `canvas.gridSize` was introduced won't have it;
-// backfill so downstream code can always rely on the field being present.
-// Similarly, panels used to carry a single `binding` field before a panel
-// could bind to multiple interfaces — migrate it into `bindings` on load.
 function parseDocument(document: vscode.TextDocument): LayoutDocument {
-  const text = document.getText().trim();
-  if (!text) { return emptyLayoutDocument(); }
-  try {
-    const doc = JSON.parse(text) as LayoutDocument;
-    if (!doc.canvas.gridSize) { doc.canvas.gridSize = emptyLayoutDocument().canvas.gridSize; }
-    doc.panels = doc.panels.map(normalizePanelBindings);
-    return doc;
-  } catch {
-    return emptyLayoutDocument();
-  }
-}
-
-function normalizePanelBindings(panel: LayoutPanel): LayoutPanel {
-  if (Array.isArray(panel.bindings)) { return panel; }
-  const { binding, ...rest } = panel as LayoutPanel & { binding?: FocusEntry | null };
-  return { ...rest, bindings: binding ? [binding] : [] };
+  return parseLayoutDocumentText(document.getText());
 }
 
 // Uploaded reference images live next to the layout file, e.g.

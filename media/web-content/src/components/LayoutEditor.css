@@ -322,6 +322,12 @@
   }
 }
 
+.layout-panel-type-select {
+  align-self: flex-start;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
 .layout-bindings-list {
   display: flex;
   flex-direction: column;

@@ -24,3 +24,26 @@ export interface LayoutDocument {
 export function emptyLayoutDocument(): LayoutDocument {
   return { version: 1, canvas: { width: 1280, height: 800, gridSize: 40 }, panels: [] };
 }
+
+// Layout files written before `canvas.gridSize` was introduced won't have it;
+// backfill so downstream code can always rely on the field being present.
+// Similarly, panels used to carry a single `binding` field before a panel
+// could bind to multiple interfaces — migrate it into `bindings` on load.
+export function parseLayoutDocumentText(text: string): LayoutDocument {
+  const trimmed = text.trim();
+  if (!trimmed) { return emptyLayoutDocument(); }
+  try {
+    const doc = JSON.parse(trimmed) as LayoutDocument;
+    if (!doc.canvas.gridSize) { doc.canvas.gridSize = emptyLayoutDocument().canvas.gridSize; }
+    doc.panels = doc.panels.map(normalizePanelBindings);
+    return doc;
+  } catch {
+    return emptyLayoutDocument();
+  }
+}
+
+function normalizePanelBindings(panel: LayoutPanel): LayoutPanel {
+  if (Array.isArray(panel.bindings)) { return panel; }
+  const { binding, ...rest } = panel as LayoutPanel & { binding?: FocusEntry | null };
+  return { ...rest, bindings: binding ? [binding] : [] };
+}

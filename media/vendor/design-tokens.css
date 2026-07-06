@@ -1,0 +1,61 @@
+/* Design tokens for the generated ROS2 dashboard — see the web-design-engineer skill
+   (.claude/skills/web-design-engineer) for the broader system this borrows from: CSS custom
+   properties for tokens, oklch() color derivation, prefers-color-scheme/prefers-reduced-motion.
+
+   Loaded ONCE in <name>.html's <head> (not per panel like tailwind.min.css) because CSS custom
+   properties inherit through Shadow DOM boundaries even though class-based rules don't — every
+   panel's own style.css can reference var(--rw-*) without needing this file linked again.
+
+   Scope: the dashboard SHELL (html/body/#ros2-stage — light DOM, outside any panel's Shadow DOM,
+   which Tailwind classes linked into each panel can never reach) plus a shared accent/status
+   palette so panels stay visually consistent instead of each picking its own blue/green/red.
+   Panels should still use Tailwind utility classes for their own layout/spacing/most colors;
+   reach for these tokens only where matching the shell exactly, or cross-panel consistency,
+   matters (accent color, success/warning/danger status color, empty/placeholder surfaces). */
+
+:root {
+  --rw-shell-bg: oklch(97% 0.002 260);
+  --rw-shell-text: oklch(24% 0.01 260);
+  --rw-panel-bg: oklch(100% 0 0);
+  --rw-panel-border: oklch(90% 0.004 260);
+  --rw-text-muted: oklch(52% 0.01 260);
+
+  /* House accent — reuse this for every panel's primary/interactive element instead of each
+     panel picking a different Tailwind color family. */
+  --rw-accent: oklch(58% 0.15 250);
+  --rw-accent-text: oklch(98% 0.01 250);
+
+  /* Status colors for badges/dots/connection state — matches the green/red/gray convention
+     already used by the generated rosbridge connection-status badge. */
+  --rw-success: oklch(62% 0.15 150);
+  --rw-warning: oklch(75% 0.15 80);
+  --rw-danger: oklch(58% 0.19 25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rw-shell-bg: oklch(16% 0.006 260);
+    --rw-shell-text: oklch(92% 0.004 260);
+    --rw-panel-bg: oklch(22% 0.006 260);
+    --rw-panel-border: oklch(32% 0.008 260);
+    --rw-text-muted: oklch(68% 0.008 260);
+    --rw-accent: oklch(72% 0.14 250);
+    --rw-accent-text: oklch(12% 0.01 250);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--rw-shell-bg);
+  color: var(--rw-shell-text);
+}

@@ -25,6 +25,11 @@
       {
         "command": "ros2-webview-extension.newLayoutFile",
         "title": "ROS2 Webview: New Layout Editor File"
+      },
+      {
+        "command": "ros2-webview-extension.generateGuiScaffold",
+        "title": "ROS2 Webview: Generate GUI Scaffold",
+        "icon": "$(layout)"
       }
     ],
     "menus": {
@@ -32,6 +37,11 @@
         {
           "command": "ros2-webview-extension.previewGeneratedUi",
           "when": "resourceExtname == .html",
+          "group": "navigation"
+        },
+        {
+          "command": "ros2-webview-extension.generateGuiScaffold",
+          "when": "resourceFilename =~ /\\.ros2ui\\.json$/",
           "group": "navigation"
         }
       ]

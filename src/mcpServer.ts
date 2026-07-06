@@ -15,6 +15,23 @@ const SERVER_INSTRUCTIONS = [
   'When the user refers to a previous selection ambiguously ("this topic", "this message", "what I picked", ' +
     'etc.) instead of naming a package/topic explicitly, call get_ros2_focus first rather than asking them to ' +
     'repeat themselves or saying you can\'t tell.',
+  'Never hand-author a full-page GUI HTML file from scratch against a .ros2ui.json layout. Call ' +
+    'generate_gui_scaffold on the .ros2ui.json file first — it deterministically produces <name>.html (fixed ' +
+    'panel geometry, never hand-edited) plus one <name>.panels/<panelId>/{panel.html,style.css,script.js} per ' +
+    'panel, plus a shared <name>.panels/tailwind.min.css already linked into every panel\'s Shadow DOM. Only ' +
+    'edit the per-panel files: prefer Tailwind utility classes in panel.html for spacing/color/typography/' +
+    'layout (it\'s a curated safelist, not the full framework — see <name>.panels/tailwind-build/README.md ' +
+    'for what\'s included), fall back to style.css only for what Tailwind\'s safelist doesn\'t cover, and ' +
+    'define `window[\'mountPanel_<panelId>\'] = function(shadowRoot, ros, bindings) {...}` in each script.js. ' +
+    'Keep any "not loaded yet"/placeholder state a light neutral background (e.g. bg-slate-100), never ' +
+    'near-black — a panel legitimately waiting for its first message can be a large fraction of a small ' +
+    'canvas, and a dark placeholder there reads as broken rather than empty. A shared ' +
+    '<name>.panels/design-tokens.css is also linked once in <name>.html\'s <head> — its --rw-* custom ' +
+    'properties (--rw-accent, --rw-success/warning/danger, --rw-panel-bg, --rw-text-muted) are usable in ' +
+    'every panel\'s style.css since custom properties inherit through Shadow DOM; reuse --rw-accent for ' +
+    'every panel\'s primary/interactive element instead of each panel picking its own color, so the ' +
+    'dashboard reads as one system. For genuine visual-design requests beyond these defaults (redesigning ' +
+    'a panel, picking a cohesive look from scratch), use the web-design-engineer skill if installed.',
 ].join('\n\n');
 
 const server = new McpServer({ name: 'ros2-interfaces', version: '0.0.1' }, { instructions: SERVER_INSTRUCTIONS });
@@ -202,6 +219,48 @@ server.registerTool(
       return errorResult(data.error ?? `HTTP ${response.status}`);
     }
     return textResult({ opened: filePath });
+  },
+);
+
+server.registerTool(
+  'generate_gui_scaffold',
+  {
+    title: 'Generate GUI scaffold from a layout',
+    description:
+      'Deterministically generate a GUI scaffold from a .ros2ui.json layout file: <name>.html (fixed panel ' +
+      'geometry — position, size, and stacking order exactly as authored in the layout, one Shadow-DOM-isolated ' +
+      '<div> per panel, never hand-edited) plus <name>.panels/<panelId>/{panel.html,style.css,script.js} — one ' +
+      'folder per panel, created only the first time. Always run this before writing any GUI code for a ' +
+      'layout — never hand-author full-page layout HTML/CSS, since hand-transcribed geometry drifts from the ' +
+      'spec. After this succeeds, edit ONLY the files under <name>.panels/<panelId>/: panel.html (content ' +
+      'fragment), style.css (Shadow-DOM-scoped, no prefixing needed), and script.js, which must define ' +
+      '`window[\'mountPanel_<panelId>\'] = function(shadowRoot, ros, bindings) {...}` — everything scoped ' +
+      'inside that function, never on window.*/document.* directly. Safe to re-run any time panels are ' +
+      'added, removed, moved, or resized — existing panel folders are left untouched and never deleted.',
+    inputSchema: {
+      path: z.string().describe('Path to the .ros2ui.json layout file, absolute or relative to the workspace root.'),
+    },
+  },
+  async ({ path: filePath }) => {
+    const port = resolveBridgePort();
+    if (port === null) { return errorResult(NO_BRIDGE_ERROR); }
+
+    let response: Response;
+    try {
+      response = await fetch(`http://127.0.0.1:${port}/scaffold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath }),
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (err) {
+      return unreachableBridgeError(port, err);
+    }
+    const data = (await response.json().catch(() => ({}))) as { htmlPath?: string; message?: string; error?: string };
+    if (!response.ok) {
+      return errorResult(data.error ?? `HTTP ${response.status}`);
+    }
+    return textResult(data);
   },
 );
 
