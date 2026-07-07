@@ -20,6 +20,19 @@ function assetsDirFor(documentUri: vscode.Uri): vscode.Uri {
   return vscode.Uri.file(path.join(dir, `${base}.assets`));
 }
 
+// Runs a request handler and posts its result (or error message) back to the
+// webview under the request's __id — the response half of the promise bridge
+// in media/web-content/src/ros2_apis/bridge.ts.
+async function respond(webview: vscode.Webview, id: number, handler: () => Promise<unknown> | unknown): Promise<void> {
+  try {
+    const result = await handler();
+    void webview.postMessage({ __id: id, result });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    void webview.postMessage({ __id: id, error: msg });
+  }
+}
+
 export default class LayoutEditorProvider implements vscode.CustomTextEditorProvider {
   // Tracks the last text this provider itself wrote per document, so the
   // onDidChangeTextDocument listener below doesn't echo the webview's own
@@ -87,38 +100,22 @@ export default class LayoutEditorProvider implements vscode.CustomTextEditorProv
       }
 
       if (e.type === 'layout/uploadImage' && e.__id !== undefined) {
-        try {
+        await respond(webviewPanel.webview, e.__id, () => {
           const { dataUri, suggestedName } = e.payload as { dataUri: string; suggestedName: string };
-          const result = await this.saveImage(document.uri, webviewPanel.webview, dataUri, suggestedName);
-          void webviewPanel.webview.postMessage({ __id: e.__id, result });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          void webviewPanel.webview.postMessage({ __id: e.__id, error: msg });
-        }
+          return this.saveImage(document.uri, webviewPanel.webview, dataUri, suggestedName);
+        });
         return;
       }
 
       // The binding picker in the panel-edit modal reuses the same interface/graph
       // listing calls as the sidebar's InterfaceBrowser/GraphBrowser.
       if (e.type === 'ros2/interfaces/list' && e.__id !== undefined) {
-        try {
-          const result = ros2Connection.listInterfaces();
-          void webviewPanel.webview.postMessage({ __id: e.__id, result });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          void webviewPanel.webview.postMessage({ __id: e.__id, error: msg });
-        }
+        await respond(webviewPanel.webview, e.__id, () => ros2Connection.listInterfaces());
         return;
       }
 
       if (e.type === 'ros2/graph/list' && e.__id !== undefined) {
-        try {
-          const result = await ros2Connection.listGraph();
-          void webviewPanel.webview.postMessage({ __id: e.__id, result });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          void webviewPanel.webview.postMessage({ __id: e.__id, error: msg });
-        }
+        await respond(webviewPanel.webview, e.__id, () => ros2Connection.listGraph());
       }
     });
 

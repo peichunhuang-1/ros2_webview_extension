@@ -94,6 +94,25 @@ function findFiles(pkg: string, subdir: string, filename: string): string[] {
     .filter(p => fs.existsSync(p));
 }
 
+// --- Shared schema builders --------------------------------------------------
+
+function primitiveSchema(baseType: string): JsonSchema {
+  return clone(rosToJsonSchemaType[baseType] ?? { type: 'string' });
+}
+
+// Array schema with ROS bounds mapped onto minItems/maxItems: a fixed-size
+// array ("T[N]") pins both, an upper-bounded one ("T[<=N]") only maxItems.
+function arraySchema(field: RosField, items: JsonSchema): JsonSchema {
+  const arr: Record<string, unknown> = { type: 'array', title: field.name, items };
+  if (field.type.arraySize > 0) {
+    arr.minItems = field.type.arraySize;
+    arr.maxItems = field.type.arraySize;
+  } else if (field.type.isUpperBound) {
+    arr.maxItems = field.type.arraySize;
+  }
+  return arr;
+}
+
 // --- Enum matching ----------------------------------------------------------
 
 function matchEnumField(
@@ -145,18 +164,11 @@ async function parseMsgFields(
     if (field.type.isArray) {
       let item: JsonSchema = {};
       if (field.type.isPrimitiveType) {
-        item = clone(rosToJsonSchemaType[baseType] ?? { type: 'string' });
+        item = primitiveSchema(baseType);
       } else {
         await parseMsgFields(item as { properties?: Record<string, JsonSchema> }, field.type.pkgName, `${baseType}.msg`);
       }
-      const arr: JsonSchema = { type: 'array', title: field.name, items: item };
-      if (field.type.arraySize > 0) {
-        (arr as Record<string, unknown>).minItems = field.type.arraySize;
-        (arr as Record<string, unknown>).maxItems = field.type.arraySize;
-      } else if (field.type.isUpperBound) {
-        (arr as Record<string, unknown>).maxItems = field.type.arraySize;
-      }
-      entity.properties[field.name] = arr;
+      entity.properties[field.name] = arraySchema(field, item);
       continue;
     }
 
@@ -169,10 +181,7 @@ async function parseMsgFields(
 
     if (baseType.includes('int') && matchEnumField(entity.properties, constants, field.name)) { continue; }
 
-    entity.properties[field.name] = {
-      ...clone(rosToJsonSchemaType[baseType] ?? { type: 'string' }),
-      title: field.name,
-    };
+    entity.properties[field.name] = { ...primitiveSchema(baseType), title: field.name };
   }
 
   // Restore original field order
@@ -186,19 +195,12 @@ async function parseMsgFields(
 async function buildFieldSchema(field: RosField): Promise<JsonSchema> {
   if (field.type.isArray) {
     const item = field.type.isPrimitiveType
-      ? clone(rosToJsonSchemaType[field.type.type] ?? { type: 'string' })
+      ? primitiveSchema(field.type.type)
       : await readMsgSchema(field.type.pkgName, field.type.type);
-    const arr: JsonSchema = { type: 'array', title: field.name, items: item };
-    if (field.type.arraySize > 0) {
-      (arr as Record<string, unknown>).minItems = field.type.arraySize;
-      (arr as Record<string, unknown>).maxItems = field.type.arraySize;
-    } else if (field.type.isUpperBound) {
-      (arr as Record<string, unknown>).maxItems = field.type.arraySize;
-    }
-    return arr;
+    return arraySchema(field, item);
   }
   if (field.type.isPrimitiveType) {
-    return { ...clone(rosToJsonSchemaType[field.type.type] ?? { type: 'string' }), title: field.name };
+    return { ...primitiveSchema(field.type.type), title: field.name };
   }
   return { ...(await readMsgSchema(field.type.pkgName, field.type.type)), title: field.name };
 }

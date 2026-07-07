@@ -18,7 +18,11 @@ export class VSCode {
         const entry = VSCode.pending.get(msg.__id)!;
         VSCode.pending.delete(msg.__id);
         clearTimeout(entry.timer);
-        msg.error ? entry.reject(new Error(msg.error)) : entry.resolve(msg.result);
+        if (msg.error) {
+          entry.reject(new Error(msg.error));
+        } else {
+          entry.resolve(msg.result);
+        }
         return;
       }
     });

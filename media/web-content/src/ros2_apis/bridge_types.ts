@@ -1,3 +1,12 @@
+// Message types + payload shapes for the webview <-> extension-host bridge.
+//
+// NOTE: the domain types here (FocusEntry, LayoutPanel, LayoutDocument, the
+// interface/graph listing shapes) mirror the extension-host definitions in
+// src/focusStore.ts, src/layoutTypes.ts, src/schemaGen.ts, and src/ros2Graph.ts.
+// The two sides are separate TypeScript projects (this one is built by Vite,
+// the extension by esbuild/tsc), so they can't import each other — when you
+// change a shape on one side, update the other side to match.
+
 export class VSCodePostTypeDefine {
   // connection
   static ROS2_CONNECT    = "ros2/connect";

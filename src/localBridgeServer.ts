@@ -13,6 +13,33 @@ export interface LocalBridgeHandle {
   dispose(): void;
 }
 
+function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+// Collects the request body, runs the handler on the parsed JSON, and replies with the
+// handler's result — or a 400 + { error } if the handler (or JSON parsing) throws.
+function handleJsonPost(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  handler: (body: Record<string, unknown>) => Promise<unknown>,
+): void {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    (async () => handler(JSON.parse(body || '{}') as Record<string, unknown>))()
+      .then(result => sendJson(res, 200, result ?? { ok: true }))
+      .catch((err: unknown) => sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) }));
+  });
+}
+
+function requirePath(body: Record<string, unknown>): string {
+  const filePath = body.path;
+  if (typeof filePath !== 'string' || !filePath) { throw new Error('Missing "path" in request body.'); }
+  return filePath;
+}
+
 // A tiny loopback-only HTTP server so the MCP server (a separate OS process,
 // spawned per-session by Claude Code / VS Code) can reach into the live
 // extension host: read the focus selection, and ask it to open/refresh a
@@ -28,50 +55,17 @@ export interface LocalBridgeHandle {
 export function startLocalBridgeServer(deps: LocalBridgeDeps, workspacePath: string): LocalBridgeHandle {
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/focus') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(focusStore.getState()));
+      sendJson(res, 200, focusStore.getState());
       return;
     }
 
     if (req.method === 'POST' && req.url === '/preview') {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
-        (async () => {
-          const { path: filePath } = JSON.parse(body || '{}') as { path?: string };
-          if (!filePath) { throw new Error('Missing "path" in request body.'); }
-          await deps.openPreview(filePath);
-        })()
-          .then(() => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: true }));
-          })
-          .catch((err: unknown) => {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-          });
-      });
+      handleJsonPost(req, res, async body => { await deps.openPreview(requirePath(body)); });
       return;
     }
 
     if (req.method === 'POST' && req.url === '/scaffold') {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
-        (async () => {
-          const { path: filePath } = JSON.parse(body || '{}') as { path?: string };
-          if (!filePath) { throw new Error('Missing "path" in request body.'); }
-          return deps.generateGuiScaffold(filePath);
-        })()
-          .then((result) => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(result));
-          })
-          .catch((err: unknown) => {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-          });
-      });
+      handleJsonPost(req, res, body => deps.generateGuiScaffold(requirePath(body)));
       return;
     }
 
