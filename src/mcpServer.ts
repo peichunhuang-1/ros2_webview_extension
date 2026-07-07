@@ -2,9 +2,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { isRos2Available, listInterfaces, readMsgSchema, readSrvSchema, readActionSchema } from './schemaGen';
+import { isRos2Available, listInterfaces, readMsgSchema, readSrvSchema, readActionSchema, type JsonSchema } from './schemaGen';
 import { listGraph } from './ros2Graph';
-import { readBridgeRegistry } from './bridgeRegistry';
+import { callBridge } from './bridgeClient';
 
 // Sent to any MCP client during the initialize handshake (per the MCP spec,
 // clients MAY surface this to the model as guidance). Unlike CLAUDE.md or a
@@ -44,6 +44,18 @@ function errorResult(message: string) {
   return { content: [{ type: 'text' as const, text: message }], isError: true };
 }
 
+// Runs a tool body, converting a thrown Error into a normal MCP error result —
+// every tool below wants this same behavior instead of a protocol-level failure.
+async function runTool(body: () => Promise<unknown> | unknown) {
+  try {
+    return textResult(await body());
+  } catch (err) {
+    return errorResult(err instanceof Error ? err.message : String(err));
+  }
+}
+
+// --- Local tools (read the installed ROS2 workspace / live graph directly) ---
+
 server.registerTool(
   'list_ros2_interfaces',
   {
@@ -73,13 +85,7 @@ server.registerTool(
       'then split each type string on "/" (package / kind / name) and pass the package and name to ' +
       'get_ros2_msg_schema, get_ros2_srv_schema, or get_ros2_action_schema for the full field schema.',
   },
-  async () => {
-    try {
-      return textResult(await listGraph());
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
-  },
+  () => runTool(() => listGraph()),
 );
 
 const schemaInputShape = {
@@ -87,75 +93,26 @@ const schemaInputShape = {
   name: z.string().describe('The interface name without extension, e.g. "Twist"'),
 };
 
-server.registerTool(
-  'get_ros2_msg_schema',
-  {
-    title: 'Get ROS2 message schema',
-    description: 'Get the JSON Schema for a ROS2 message (.msg) type, given its package and name.',
-    inputSchema: schemaInputShape,
-  },
-  async ({ pkg, name }) => {
-    try {
-      return textResult(await readMsgSchema(pkg, name));
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
-  },
-);
+// The three schema tools are identical apart from the interface kind they read.
+const SCHEMA_TOOLS: { name: string; title: string; kind: string; read: (pkg: string, name: string) => Promise<JsonSchema> }[] = [
+  { name: 'get_ros2_msg_schema',    title: 'Get ROS2 message schema', kind: 'message (.msg)',                        read: readMsgSchema },
+  { name: 'get_ros2_srv_schema',    title: 'Get ROS2 service schema', kind: 'service (.srv) request',                read: readSrvSchema },
+  { name: 'get_ros2_action_schema', title: 'Get ROS2 action schema',  kind: 'action (.action) (goal/result/feedback)', read: readActionSchema },
+];
 
-server.registerTool(
-  'get_ros2_srv_schema',
-  {
-    title: 'Get ROS2 service schema',
-    description: 'Get the JSON Schema for a ROS2 service (.srv) request type, given its package and name.',
-    inputSchema: schemaInputShape,
-  },
-  async ({ pkg, name }) => {
-    try {
-      return textResult(await readSrvSchema(pkg, name));
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
-  },
-);
-
-server.registerTool(
-  'get_ros2_action_schema',
-  {
-    title: 'Get ROS2 action schema',
-    description: 'Get the JSON Schema for a ROS2 action (.action) type (goal/result/feedback), given its package and name.',
-    inputSchema: schemaInputShape,
-  },
-  async ({ pkg, name }) => {
-    try {
-      return textResult(await readActionSchema(pkg, name));
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
-  },
-);
-
-// The workspace key must match what extension.ts derives (workspace folder fsPath) so we
-// read the registry file the currently-active VS Code window last wrote to (see bridgeRegistry.ts).
-const WORKSPACE_KEY = process.env.ROS2_WEBVIEW_WORKSPACE || process.cwd();
-
-// Re-read on every call rather than caching: the registered window (and its port) can
-// change any time a window reloads or a new one activates.
-function resolveBridgePort(): number | null {
-  return readBridgeRegistry(WORKSPACE_KEY)?.port ?? null;
-}
-
-const NO_BRIDGE_ERROR =
-  'No active ROS2 Webview window is registered for this workspace. Open the "ROS2 Webview" panel ' +
-  '(the icon in the Activity Bar) in VS Code to activate the extension.';
-
-function unreachableBridgeError(port: number, err: unknown): ReturnType<typeof errorResult> {
-  return errorResult(
-    `Could not reach the ROS2 Webview extension on port ${port} (${err instanceof Error ? err.message : String(err)}). ` +
-    'The registered VS Code window may have been closed or become unresponsive (e.g. a paused debug session) — ' +
-    'try closing extra windows for this workspace and reloading the one you are using.',
+for (const tool of SCHEMA_TOOLS) {
+  server.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description: `Get the JSON Schema for a ROS2 ${tool.kind} type, given its package and name.`,
+      inputSchema: schemaInputShape,
+    },
+    ({ pkg, name }) => runTool(() => tool.read(pkg, name)),
   );
 }
+
+// --- Bridge tools (proxied into the live VS Code extension host via bridgeClient.ts) ---
 
 server.registerTool(
   'get_ros2_focus',
@@ -170,19 +127,8 @@ server.registerTool(
       'repeat themselves.',
   },
   async () => {
-    const port = resolveBridgePort();
-    if (port === null) { return errorResult(NO_BRIDGE_ERROR); }
-
-    let response: Response;
-    try {
-      response = await fetch(`http://127.0.0.1:${port}/focus`, { signal: AbortSignal.timeout(2000) });
-    } catch (err) {
-      return unreachableBridgeError(port, err);
-    }
-    if (!response.ok) {
-      return errorResult(`ROS2 Webview bridge server returned HTTP ${response.status}.`);
-    }
-    return textResult(await response.json());
+    const result = await callBridge('/focus');
+    return result.ok ? textResult(result.data) : errorResult(result.error);
   },
 );
 
@@ -200,25 +146,8 @@ server.registerTool(
     },
   },
   async ({ path: filePath }) => {
-    const port = resolveBridgePort();
-    if (port === null) { return errorResult(NO_BRIDGE_ERROR); }
-
-    let response: Response;
-    try {
-      response = await fetch(`http://127.0.0.1:${port}/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath }),
-        signal: AbortSignal.timeout(2000),
-      });
-    } catch (err) {
-      return unreachableBridgeError(port, err);
-    }
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      return errorResult(data.error ?? `HTTP ${response.status}`);
-    }
-    return textResult({ opened: filePath });
+    const result = await callBridge('/preview', { method: 'POST', body: { path: filePath } });
+    return result.ok ? textResult({ opened: filePath }) : errorResult(result.error);
   },
 );
 
@@ -242,25 +171,8 @@ server.registerTool(
     },
   },
   async ({ path: filePath }) => {
-    const port = resolveBridgePort();
-    if (port === null) { return errorResult(NO_BRIDGE_ERROR); }
-
-    let response: Response;
-    try {
-      response = await fetch(`http://127.0.0.1:${port}/scaffold`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath }),
-        signal: AbortSignal.timeout(5000),
-      });
-    } catch (err) {
-      return unreachableBridgeError(port, err);
-    }
-    const data = (await response.json().catch(() => ({}))) as { htmlPath?: string; message?: string; error?: string };
-    if (!response.ok) {
-      return errorResult(data.error ?? `HTTP ${response.status}`);
-    }
-    return textResult(data);
+    const result = await callBridge('/scaffold', { method: 'POST', body: { path: filePath }, timeoutMs: 5000 });
+    return result.ok ? textResult(result.data) : errorResult(result.error);
   },
 );
 
