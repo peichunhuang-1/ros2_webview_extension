@@ -1,0 +1,115 @@
+.graph-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+}
+
+.graph-hint {
+  margin-left: 12px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.graph-toolbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* React Flow needs an explicitly-sized container. */
+.graph-editor-flow {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Let the flow canvas theme with VS Code instead of React Flow's light default. */
+.graph-editor-flow .react-flow {
+  background: var(--vscode-editor-background);
+}
+
+/* --- Node rectangle --- */
+.ros2-node-card {
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid var(--vscode-panel-border, #454545);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.ros2-node-card.selected {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.ros2-node-card-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ros2-node-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.ros2-node-card-lang {
+  opacity: 0.9;
+}
+
+/* --- Channel ellipse --- */
+.ros2-channel-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 128px;
+  min-height: 64px;
+  padding: 6px 18px;
+  border: 2px solid;
+  border-radius: 50%;
+  background: var(--vscode-editorWidget-background, #252526);
+  text-align: center;
+}
+
+.ros2-channel-node.selected {
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder, #007acc);
+}
+
+.ros2-channel-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.ros2-channel-name {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ros2-channel-type {
+  font-size: 10px;
+  opacity: 0.65;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Make the connection handles easier to grab. */
+.graph-editor-flow .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--vscode-focusBorder, #007acc);
+  border: 1px solid var(--vscode-editor-background, #1e1e1e);
+}

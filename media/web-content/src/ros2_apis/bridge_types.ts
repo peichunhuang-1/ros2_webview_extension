@@ -29,6 +29,10 @@ export class VSCodePostTypeDefine {
   static LAYOUT_INIT         = "layout/init";
   static LAYOUT_UPDATE       = "layout/update";
   static LAYOUT_UPLOAD_IMAGE = "layout/uploadImage";
+  // node-graph editor (pushed messages, see graphApi.ts)
+  static GRAPH_READY  = "graph/ready";
+  static GRAPH_INIT   = "graph/init";
+  static GRAPH_UPDATE = "graph/update";
 }
 
 // --- Connection / Schema ---
@@ -140,4 +144,54 @@ export type UploadImageRequest = {
 export type UploadImageResult = {
   relativePath: string;
   webviewUri:   string;
+};
+
+// --- Node-graph editor (ROS2 computation-graph architecture spec) ---
+//
+// Mirrors src/graphTypes.ts on the extension host — keep the two in sync.
+
+export type NodeLanguage = 'cpp' | 'py' | 'rust';
+
+export type GraphNode = {
+  id:        string;
+  name:      string;
+  namespace: string;
+  language:  NodeLanguage;
+  x:         number;
+  y:         number;
+  notes?:    string;
+};
+
+export type ChannelKind = 'topic' | 'service' | 'action';
+
+export type GraphChannel = {
+  id:   string;
+  kind: ChannelKind;
+  name: string;
+  type: string;
+  x:    number;
+  y:    number;
+};
+
+export type LinkRole =
+  | 'publisher' | 'subscriber'
+  | 'service_client' | 'service_server'
+  | 'action_client' | 'action_server';
+
+export type GraphLink = {
+  id:        string;
+  nodeId:    string;
+  channelId: string;
+  role:      LinkRole;
+};
+
+export type GraphDocument = {
+  version:  1;
+  nodes:    GraphNode[];
+  channels: GraphChannel[];
+  links:    GraphLink[];
+};
+
+export type GraphInitPayload = {
+  doc: GraphDocument;
 };

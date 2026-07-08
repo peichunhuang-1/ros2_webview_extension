@@ -5,7 +5,7 @@ import * as path from 'path';
 // Shared by WebviewPanelProvider (sidebar) and LayoutEditorProvider (custom editor) —
 // both mount the same built React bundle, differing only in which root component
 // main.tsx picks based on the `data-view` attribute stamped on #root.
-export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, view: 'sidebar' | 'layout-editor'): string {
+export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, view: 'sidebar' | 'layout-editor' | 'graph-editor'): string {
   function findFile(distPath: string, pattern: RegExp) {
     const files = fs.readdirSync(distPath);
     return files.find(f => pattern.test(f));
