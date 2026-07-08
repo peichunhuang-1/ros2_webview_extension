@@ -7,15 +7,16 @@
   font-family: var(--vscode-font-family);
 }
 
-.graph-hint {
-  margin-left: 12px;
-  font-size: 11px;
-  opacity: 0.6;
-}
-
 .graph-toolbar-actions {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Keep each "+Node"/"+Topic" label on a single line — the buttons are narrow
+   and would otherwise break after the "+". */
+.graph-toolbar-actions .layout-add-btn {
+  white-space: nowrap;
 }
 
 /* React Flow needs an explicitly-sized container. */

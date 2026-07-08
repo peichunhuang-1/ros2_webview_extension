@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ros2Api } from '../../ros2_apis/ros2Api';
 import type { ChannelKind, GraphChannel, InterfaceListResult } from '../../ros2_apis/bridge_types';
+import SearchableSelect from '../layout-editor/SearchableSelect';
 
 // The interface subdir that appears in a ROS2 type string for each channel kind
 // (e.g. "geometry_msgs/msg/Twist", "example_interfaces/srv/AddTwoInts").
@@ -29,7 +30,13 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
     ros2Api.listInterfaces().then(setInterfaces).catch(() => {});
   }, []);
 
-  const typeOptions = typeOptionsFor(interfaces, channel.kind);
+  // Include the currently-set type even if it isn't among the installed
+  // interfaces (e.g. a graph authored against a different workspace), so the
+  // combobox still shows it as selected rather than appearing empty.
+  const installed = typeOptionsFor(interfaces, channel.kind);
+  const typeOptions = channel.type && !installed.includes(channel.type)
+    ? [channel.type, ...installed]
+    : installed;
 
   return (
     <div
@@ -61,18 +68,15 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
           />
         </label>
 
-        <label className="layout-field">
+        <div className="layout-field">
           Type
-          <input
+          <SearchableSelect
             value={channel.type}
-            list="ros2-channel-type-options"
-            onChange={e => onChange({ type: e.target.value })}
-            placeholder={`${channel.kind === 'topic' ? 'geometry_msgs/msg/Twist' : channel.kind === 'service' ? 'example_interfaces/srv/AddTwoInts' : 'action_tutorials_interfaces/action/Fibonacci'}`}
+            placeholder={`Search ${channel.kind === 'topic' ? 'messages' : channel.kind === 'service' ? 'services' : 'actions'}…`}
+            options={typeOptions.map(t => ({ value: t, label: t }))}
+            onChange={type => onChange({ type })}
           />
-          <datalist id="ros2-channel-type-options">
-            {typeOptions.map(t => <option key={t} value={t} />)}
-          </datalist>
-        </label>
+        </div>
 
         <div className="layout-modal-actions">
           <button className="layout-delete-btn" onClick={onDelete}>Delete {channel.kind}</button>

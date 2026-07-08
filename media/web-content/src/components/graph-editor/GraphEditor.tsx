@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ReactFlow, Background, Controls, MiniMap, addEdge, useEdgesState, useNodesState, MarkerType,
+  ReactFlow, Background, addEdge, useEdgesState, useNodesState, MarkerType,
   type Connection, type Edge, type Node, type NodeTypes, type OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -239,13 +239,12 @@ export default function GraphEditor() {
       <header className="layout-toolbar">
         <div className="layout-toolbar-left">
           <span className="title">Architecture Graph</span>
-          <span className="graph-hint">Drag a node handle to a topic/service/action to connect · double-click to edit · Del to remove</span>
         </div>
         <div className="layout-toolbar-right graph-toolbar-actions">
-          <button className="layout-add-btn" onClick={addNode}>+ Node</button>
-          <button className="layout-add-btn" onClick={() => addChannel('topic')}>+ Topic</button>
-          <button className="layout-add-btn" onClick={() => addChannel('service')}>+ Service</button>
-          <button className="layout-add-btn" onClick={() => addChannel('action')}>+ Action</button>
+          <button className="layout-add-btn" onClick={addNode}>+Node</button>
+          <button className="layout-add-btn" onClick={() => addChannel('topic')}>+Topic</button>
+          <button className="layout-add-btn" onClick={() => addChannel('service')}>+Service</button>
+          <button className="layout-add-btn" onClick={() => addChannel('action')}>+Action</button>
         </div>
       </header>
 
@@ -267,8 +266,6 @@ export default function GraphEditor() {
           proOptions={{ hideAttribution: true }}
         >
           <Background />
-          <Controls />
-          <MiniMap pannable zoomable />
         </ReactFlow>
       </div>
 
