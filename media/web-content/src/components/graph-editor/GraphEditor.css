@@ -10,13 +10,22 @@
 .graph-toolbar-actions {
   display: flex;
   gap: 6px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-/* Keep each "+Node"/"+Topic" label on a single line — the buttons are narrow
+/* Keep each "+ Node"/"+ Topic" label on a single line — the buttons are narrow
    and would otherwise break after the "+". */
 .graph-toolbar-actions .layout-add-btn {
   white-space: nowrap;
+}
+
+/* Thin divider between the node-adding and channel-adding button groups. */
+.graph-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px;
+  background: var(--vscode-panel-border, #454545);
 }
 
 /* React Flow needs an explicitly-sized container. */
@@ -45,22 +54,33 @@
   border-color: var(--vscode-focusBorder, #007acc);
 }
 
-.ros2-node-card-name {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.ros2-node-card-meta {
+.ros2-node-card-top {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
-  margin-top: 2px;
-  font-size: 11px;
-  opacity: 0.75;
+  font-size: 10px;
+}
+
+.ros2-node-card-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .ros2-node-card-lang {
-  opacity: 0.9;
+  opacity: 0.7;
+}
+
+.ros2-node-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.ros2-node-card-ns {
+  font-size: 11px;
+  opacity: 0.6;
 }
 
 /* --- Channel ellipse --- */

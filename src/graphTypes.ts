@@ -19,8 +19,14 @@
 
 export type NodeLanguage = 'cpp' | 'py' | 'rust';
 
+// The three rectangle kinds. A plain `node` is any ROS2 node; `controller` and
+// `hardware` model the ros2_control world (a controller_manager-loaded
+// controller, and a hardware component / hardware interface plugin).
+export type NodeKind = 'node' | 'controller' | 'hardware';
+
 export interface GraphNode {
   id:         string;
+  kind:       NodeKind;
   name:       string;
   namespace:  string;
   language:   NodeLanguage;
@@ -29,7 +35,10 @@ export interface GraphNode {
   notes?:     string;
 }
 
-export type ChannelKind = 'topic' | 'service' | 'action';
+// Ellipse kinds. topic/service/action are the ROS2 pub-sub/RPC primitives;
+// `control` and `hardware_interface` model ros2_control wiring (a command/state
+// control interface, and a hardware-exported interface).
+export type ChannelKind = 'topic' | 'service' | 'action' | 'control' | 'hardware_interface';
 
 export interface GraphChannel {
   id:    string;
@@ -50,7 +59,9 @@ export interface GraphChannel {
 export type LinkRole =
   | 'publisher' | 'subscriber'
   | 'service_client' | 'service_server'
-  | 'action_client' | 'action_server';
+  | 'action_client' | 'action_server'
+  | 'control_writer' | 'control_reader'
+  | 'interface_exporter' | 'interface_consumer';
 
 export interface GraphLink {
   id:        string;
@@ -74,9 +85,11 @@ export function emptyGraphDocument(): GraphDocument {
 // — i.e. [arrow source side, arrow target side].
 export function linkRolesForKind(kind: ChannelKind): [LinkRole, LinkRole] {
   switch (kind) {
-    case 'topic':   return ['publisher', 'subscriber'];
-    case 'service': return ['service_client', 'service_server'];
-    case 'action':  return ['action_client', 'action_server'];
+    case 'topic':              return ['publisher', 'subscriber'];
+    case 'service':            return ['service_client', 'service_server'];
+    case 'action':             return ['action_client', 'action_server'];
+    case 'control':            return ['control_writer', 'control_reader'];
+    case 'hardware_interface': return ['interface_exporter', 'interface_consumer'];
   }
 }
 
@@ -95,7 +108,11 @@ export function parseGraphDocumentText(text: string): GraphDocument {
   if (!trimmed) { return emptyGraphDocument(); }
   try {
     const doc = JSON.parse(trimmed) as Partial<GraphDocument>;
-    const nodes = Array.isArray(doc.nodes) ? doc.nodes : [];
+    // Backfill kind on nodes written before the ros2_control kinds existed.
+    const nodes = (Array.isArray(doc.nodes) ? doc.nodes : []).map(n => {
+      const node = n as Partial<GraphNode>;
+      return { ...node, kind: node.kind ?? 'node' } as GraphNode;
+    });
     const channels = Array.isArray(doc.channels) ? doc.channels : [];
     const nodeIds = new Set(nodes.map(n => n.id));
     const channelIds = new Set(channels.map(c => c.id));

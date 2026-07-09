@@ -6,7 +6,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { graphApi } from '../../ros2_apis/graphApi';
 import type {
-  ChannelKind, GraphChannel, GraphDocument, GraphNode, LinkRole,
+  ChannelKind, GraphChannel, GraphDocument, GraphNode, LinkRole, NodeKind,
 } from '../../ros2_apis/bridge_types';
 import { roleFor, roleIsProducer, roleLabel } from './graphModel';
 import Ros2NodeCard from './Ros2NodeCard';
@@ -166,10 +166,10 @@ export default function GraphEditor() {
     schedulePush();
   };
 
-  function addNode() {
+  function addNode(kind: NodeKind) {
     const id = crypto.randomUUID();
     const pos = spawnPosition(nodes.length);
-    const node: GraphNode = { id, name: 'new_node', namespace: '/', language: 'cpp', x: pos.x, y: pos.y };
+    const node: GraphNode = { id, kind, name: `new_${kind}`, namespace: '/', language: 'cpp', x: pos.x, y: pos.y };
     setNodes(ns => [...ns, { id, type: 'ros2node', position: pos, data: { node } }]);
     schedulePush();
     setEditing({ kind: 'node', id });
@@ -241,10 +241,15 @@ export default function GraphEditor() {
           <span className="title">Architecture Graph</span>
         </div>
         <div className="layout-toolbar-right graph-toolbar-actions">
-          <button className="layout-add-btn" onClick={addNode}>+Node</button>
-          <button className="layout-add-btn" onClick={() => addChannel('topic')}>+Topic</button>
-          <button className="layout-add-btn" onClick={() => addChannel('service')}>+Service</button>
-          <button className="layout-add-btn" onClick={() => addChannel('action')}>+Action</button>
+          <button className="layout-add-btn" onClick={() => addNode('node')}>+ Node</button>
+          <button className="layout-add-btn" onClick={() => addNode('controller')}>+ Controller</button>
+          <button className="layout-add-btn" onClick={() => addNode('hardware')}>+ Hardware</button>
+          <span className="graph-toolbar-sep" />
+          <button className="layout-add-btn" onClick={() => addChannel('topic')}>+ Topic</button>
+          <button className="layout-add-btn" onClick={() => addChannel('service')}>+ Service</button>
+          <button className="layout-add-btn" onClick={() => addChannel('action')}>+ Action</button>
+          <button className="layout-add-btn" onClick={() => addChannel('control')}>+ Control</button>
+          <button className="layout-add-btn" onClick={() => addChannel('hardware_interface')}>+ HW Interface</button>
         </div>
       </header>
 

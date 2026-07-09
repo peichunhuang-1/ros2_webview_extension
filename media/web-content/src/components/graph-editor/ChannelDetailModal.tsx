@@ -3,20 +3,23 @@ import { ros2Api } from '../../ros2_apis/ros2Api';
 import type { ChannelKind, GraphChannel, InterfaceListResult } from '../../ros2_apis/bridge_types';
 import SearchableSelect from '../layout-editor/SearchableSelect';
 
-// The interface subdir that appears in a ROS2 type string for each channel kind
-// (e.g. "geometry_msgs/msg/Twist", "example_interfaces/srv/AddTwoInts").
-const KIND_SUBDIR: Record<ChannelKind, string> = { topic: 'msg', service: 'srv', action: 'action' };
+// topic/service/action carry a real ROS2 interface *type* string, resolvable
+// from the installed interface list. control/hardware_interface don't — their
+// "type" is a free-form interface name (e.g. "position", "velocity/effort"), so
+// they get a plain text field instead of the interface combobox.
+const KIND_SUBDIR: Partial<Record<ChannelKind, string>> = { topic: 'msg', service: 'srv', action: 'action' };
 
 function typeOptionsFor(list: InterfaceListResult | null, kind: ChannelKind): string[] {
   if (!list) { return []; }
-  const entries = kind === 'topic' ? list.msgs : kind === 'service' ? list.srvs : list.actions;
-  return entries.map(e => `${e.pkg}/${KIND_SUBDIR[kind]}/${e.name}`);
+  if (kind === 'topic')   { return list.msgs.map(e => `${e.pkg}/msg/${e.name}`); }
+  if (kind === 'service') { return list.srvs.map(e => `${e.pkg}/srv/${e.name}`); }
+  if (kind === 'action')  { return list.actions.map(e => `${e.pkg}/action/${e.name}`); }
+  return [];
 }
 
-// Double-click editor for a channel ellipse. The type field is a free-text
-// input backed by a <datalist> of installed interfaces of the matching kind —
-// so you get autocomplete against what's installed, but can still type a type
-// that isn't installed locally yet.
+// Double-click editor for a channel ellipse. For ROS2 interface kinds the type
+// picker is the same SearchableSelect combobox the layout editor's binding row
+// uses; for ros2_control kinds it's a free-text interface name.
 export default function ChannelDetailModal({ channel, onChange, onClose, onDelete }: {
   channel: GraphChannel;
   onChange: (changes: Partial<GraphChannel>) => void;
@@ -29,6 +32,8 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
   useEffect(() => {
     ros2Api.listInterfaces().then(setInterfaces).catch(() => {});
   }, []);
+
+  const isRosInterface = channel.kind in KIND_SUBDIR;
 
   // Include the currently-set type even if it isn't among the installed
   // interfaces (e.g. a graph authored against a different workspace), so the
@@ -46,7 +51,7 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
     >
       <div className="layout-modal" onClick={e => e.stopPropagation()}>
         <div className="layout-modal-header">
-          <span>Edit {channel.kind}</span>
+          <span>Edit channel</span>
           <button className="layout-modal-close" onClick={onClose}>×</button>
         </div>
 
@@ -56,6 +61,8 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
             <option value="topic">Topic</option>
             <option value="service">Service</option>
             <option value="action">Action</option>
+            <option value="control">Control interface</option>
+            <option value="hardware_interface">Hardware interface</option>
           </select>
         </label>
 
@@ -64,22 +71,33 @@ export default function ChannelDetailModal({ channel, onChange, onClose, onDelet
           <input
             value={channel.name}
             onChange={e => onChange({ name: e.target.value })}
-            placeholder={channel.kind === 'topic' ? '/cmd_vel' : '/add_two_ints'}
+            placeholder={channel.kind === 'topic' ? '/cmd_vel' : channel.kind === 'control' ? 'position' : '/add_two_ints'}
           />
         </label>
 
-        <div className="layout-field">
-          Type
-          <SearchableSelect
-            value={channel.type}
-            placeholder={`Search ${channel.kind === 'topic' ? 'messages' : channel.kind === 'service' ? 'services' : 'actions'}…`}
-            options={typeOptions.map(t => ({ value: t, label: t }))}
-            onChange={type => onChange({ type })}
-          />
-        </div>
+        {isRosInterface ? (
+          <div className="layout-field">
+            Type
+            <SearchableSelect
+              value={channel.type}
+              placeholder={`Search ${channel.kind === 'topic' ? 'messages' : channel.kind === 'service' ? 'services' : 'actions'}…`}
+              options={typeOptions.map(t => ({ value: t, label: t }))}
+              onChange={type => onChange({ type })}
+            />
+          </div>
+        ) : (
+          <label className="layout-field">
+            Interface type
+            <input
+              value={channel.type}
+              onChange={e => onChange({ type: e.target.value })}
+              placeholder={channel.kind === 'control' ? 'e.g. position, velocity, effort' : 'e.g. hardware_interface/SystemInterface'}
+            />
+          </label>
+        )}
 
         <div className="layout-modal-actions">
-          <button className="layout-delete-btn" onClick={onDelete}>Delete {channel.kind}</button>
+          <button className="layout-delete-btn" onClick={onDelete}>Delete channel</button>
           <button className="layout-close-btn" onClick={onClose}>Done</button>
         </div>
       </div>

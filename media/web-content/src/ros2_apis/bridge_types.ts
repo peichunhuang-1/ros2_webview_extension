@@ -152,8 +152,11 @@ export type UploadImageResult = {
 
 export type NodeLanguage = 'cpp' | 'py' | 'rust';
 
+export type NodeKind = 'node' | 'controller' | 'hardware';
+
 export type GraphNode = {
   id:        string;
+  kind:      NodeKind;
   name:      string;
   namespace: string;
   language:  NodeLanguage;
@@ -162,7 +165,7 @@ export type GraphNode = {
   notes?:    string;
 };
 
-export type ChannelKind = 'topic' | 'service' | 'action';
+export type ChannelKind = 'topic' | 'service' | 'action' | 'control' | 'hardware_interface';
 
 export type GraphChannel = {
   id:   string;
@@ -176,7 +179,9 @@ export type GraphChannel = {
 export type LinkRole =
   | 'publisher' | 'subscriber'
   | 'service_client' | 'service_server'
-  | 'action_client' | 'action_server';
+  | 'action_client' | 'action_server'
+  | 'control_writer' | 'control_reader'
+  | 'interface_exporter' | 'interface_consumer';
 
 export type GraphLink = {
   id:        string;
