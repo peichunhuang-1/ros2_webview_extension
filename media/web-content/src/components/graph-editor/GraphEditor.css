@@ -163,3 +163,14 @@
   background: var(--vscode-focusBorder, #007acc);
   border: 1px solid var(--vscode-editor-background, #1e1e1e);
 }
+
+/* Theme the edge role labels (publishes/calls/exports…): a muted foreground on
+   a chip of the editor background, instead of React Flow's default dark-on-white. */
+.graph-editor-flow .react-flow__edge-text {
+  fill: var(--vscode-descriptionForeground, #9aa0a6);
+  font-size: 10px;
+}
+
+.graph-editor-flow .react-flow__edge-textbg {
+  fill: var(--vscode-editor-background, #1e1e1e);
+}

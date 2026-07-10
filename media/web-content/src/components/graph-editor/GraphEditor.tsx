@@ -282,7 +282,7 @@ export default function GraphEditor() {
         </div>
         <div className="layout-toolbar-right graph-toolbar-actions" onClick={e => e.stopPropagation()}>
           <div className="graph-add-group">
-            <button className="layout-add-btn" onClick={() => setAddMenu(m => (m === 'node' ? null : 'node'))}>+ Node ▾</button>
+            <button className="layout-add-btn" onClick={() => setAddMenu(m => (m === 'node' ? null : 'node'))}>+ Component ▾</button>
             {addMenu === 'node' && (
               <div className="graph-add-menu">
                 <button onClick={() => { addNode('node'); setAddMenu(null); }}>Node</button>
