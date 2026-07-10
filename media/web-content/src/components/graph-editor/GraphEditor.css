@@ -20,12 +20,41 @@
   white-space: nowrap;
 }
 
-/* Thin divider between the node-adding and channel-adding button groups. */
-.graph-toolbar-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 2px;
-  background: var(--vscode-panel-border, #454545);
+/* Add-menu dropdowns ("+ Node ▾", "+ Channel ▾"). */
+.graph-add-group {
+  position: relative;
+}
+
+.graph-add-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 4px;
+  border-radius: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #454545));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.graph-add-menu button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.graph-add-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, inherit);
 }
 
 /* React Flow needs an explicitly-sized container. */

@@ -165,22 +165,25 @@ export type GraphNode = {
   notes?:    string;
 };
 
-export type ChannelKind = 'topic' | 'service' | 'action' | 'control' | 'hardware_interface';
+export type ChannelKind = 'topic' | 'service' | 'action' | 'interface';
+
+export type InterfaceDirection = 'command' | 'state';
 
 export type GraphChannel = {
-  id:   string;
-  kind: ChannelKind;
-  name: string;
-  type: string;
-  x:    number;
-  y:    number;
+  id:         string;
+  kind:       ChannelKind;
+  name:       string;
+  type:       string;
+  joint?:     string;
+  direction?: InterfaceDirection;
+  x:          number;
+  y:          number;
 };
 
 export type LinkRole =
   | 'publisher' | 'subscriber'
   | 'service_client' | 'service_server'
   | 'action_client' | 'action_server'
-  | 'control_writer' | 'control_reader'
   | 'interface_exporter' | 'interface_consumer';
 
 export type GraphLink = {

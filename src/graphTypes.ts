@@ -36,18 +36,27 @@ export interface GraphNode {
 }
 
 // Ellipse kinds. topic/service/action are the ROS2 pub-sub/RPC primitives;
-// `control` and `hardware_interface` model ros2_control wiring (a command/state
-// control interface, and a hardware-exported interface).
-export type ChannelKind = 'topic' | 'service' | 'action' | 'control' | 'hardware_interface';
+// `interface` is a ros2_control command/state interface exported by hardware and
+// claimed by a controller.
+export type ChannelKind = 'topic' | 'service' | 'action' | 'interface';
+
+// A ros2_control interface is either a command interface (a controller writes it,
+// hardware reads it) or a state interface (hardware writes it, a controller reads it).
+export type InterfaceDirection = 'command' | 'state';
 
 export interface GraphChannel {
   id:    string;
   kind:  ChannelKind;
+  // For topic/service/action: the ROS name (e.g. "/cmd_vel"). For an interface:
+  // the interface name (e.g. "position", "velocity", "effort").
   name:  string;
-  // The interface type string, e.g. "geometry_msgs/msg/Twist",
-  // "example_interfaces/srv/AddTwoInts", "action_tutorials_interfaces/action/Fibonacci".
-  // Empty until the user picks one — a channel can be placed before its type is chosen.
+  // For topic/service/action: the interface type string, e.g. "geometry_msgs/msg/Twist"
+  // (empty until picked). Unused for `interface` channels.
   type:  string;
+  // `interface` channels only: the ros2_control joint/link the interface belongs
+  // to (e.g. "wheel_left") and its direction (command vs state).
+  joint?:     string;
+  direction?: InterfaceDirection;
   x:     number;
   y:     number;
 }
@@ -60,7 +69,7 @@ export type LinkRole =
   | 'publisher' | 'subscriber'
   | 'service_client' | 'service_server'
   | 'action_client' | 'action_server'
-  | 'control_writer' | 'control_reader'
+  // interface: hardware exports it, a controller/node consumes (claims) it.
   | 'interface_exporter' | 'interface_consumer';
 
 export interface GraphLink {
@@ -85,11 +94,10 @@ export function emptyGraphDocument(): GraphDocument {
 // — i.e. [arrow source side, arrow target side].
 export function linkRolesForKind(kind: ChannelKind): [LinkRole, LinkRole] {
   switch (kind) {
-    case 'topic':              return ['publisher', 'subscriber'];
-    case 'service':            return ['service_client', 'service_server'];
-    case 'action':             return ['action_client', 'action_server'];
-    case 'control':            return ['control_writer', 'control_reader'];
-    case 'hardware_interface': return ['interface_exporter', 'interface_consumer'];
+    case 'topic':     return ['publisher', 'subscriber'];
+    case 'service':   return ['service_client', 'service_server'];
+    case 'action':    return ['action_client', 'action_server'];
+    case 'interface': return ['interface_exporter', 'interface_consumer'];
   }
 }
 

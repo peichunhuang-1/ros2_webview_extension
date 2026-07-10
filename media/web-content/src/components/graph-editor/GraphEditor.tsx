@@ -19,8 +19,27 @@ import './GraphEditor.css';
 const nodeTypes: NodeTypes = { ros2node: Ros2NodeCard, ros2channel: Ros2ChannelNode };
 
 type LinkData = { nodeId: string; channelId: string; role: LinkRole };
+type Link = { id: string; nodeId: string; channelId: string; role: LinkRole };
 
 // --- GraphDocument <-> React Flow conversions --------------------------------
+
+// One place that turns a (nodeId, channelId, role) link into a React Flow edge,
+// so a freshly-connected edge and a reloaded one are always built identically.
+// The producer/initiator side is the arrow source: a publisher/client/exporter
+// runs node -> channel, a subscriber/server/consumer runs channel -> node.
+function linkToEdge(link: Link): Edge {
+  const producer = roleIsProducer(link.role);
+  return {
+    id: link.id,
+    source: producer ? link.nodeId : link.channelId,
+    target: producer ? link.channelId : link.nodeId,
+    sourceHandle: 'out',
+    targetHandle: 'in',
+    label: roleLabel(link.role),
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { nodeId: link.nodeId, channelId: link.channelId, role: link.role } satisfies LinkData,
+  };
+}
 
 function docToRfNodes(doc: GraphDocument): Node[] {
   return [
@@ -30,21 +49,7 @@ function docToRfNodes(doc: GraphDocument): Node[] {
 }
 
 function docToRfEdges(doc: GraphDocument): Edge[] {
-  return doc.links.map(l => {
-    // The producer/initiator side is the arrow source, so a publisher/client
-    // runs node -> channel and a subscriber/server runs channel -> node.
-    const producer = roleIsProducer(l.role);
-    return {
-      id: l.id,
-      source: producer ? l.nodeId : l.channelId,
-      target: producer ? l.channelId : l.nodeId,
-      sourceHandle: 'out',
-      targetHandle: 'in',
-      label: roleLabel(l.role),
-      markerEnd: { type: MarkerType.ArrowClosed },
-      data: { nodeId: l.nodeId, channelId: l.channelId, role: l.role } satisfies LinkData,
-    };
-  });
+  return doc.links.map(linkToEdge);
 }
 
 function rfToDoc(nodes: Node[], edges: Edge[]): GraphDocument {
@@ -71,10 +76,21 @@ function spawnPosition(count: number): { x: number; y: number } {
   return { x: 80 + step * 48, y: 80 + step * 48 };
 }
 
+// The role a node plays on a channel. For a ros2_control interface it's fixed by
+// the node's kind (hardware exports it, everything else claims it); for the ROS2
+// primitives it follows the arrow direction the user dragged.
+function roleForConnection(node: GraphNode, channel: GraphChannel, nodeIsProducer: boolean): LinkRole {
+  if (channel.kind === 'interface') {
+    return node.kind === 'hardware' ? 'interface_exporter' : 'interface_consumer';
+  }
+  return roleFor(channel.kind, nodeIsProducer);
+}
+
 export default function GraphEditor() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [editing, setEditing] = useState<{ kind: 'node' | 'channel'; id: string } | null>(null);
+  const [addMenu, setAddMenu] = useState<null | 'node' | 'channel'>(null);
   const [loaded, setLoaded] = useState(false);
 
   // Suppress pushing while applying an externally-pushed document (init/undo),
@@ -117,6 +133,13 @@ export default function GraphEditor() {
     () => new Set(nodes.filter(n => n.type === 'ros2node').map(n => n.id)),
     [nodes],
   );
+  const nodeById = useMemo(() => {
+    const m = new Map<string, GraphNode>();
+    for (const n of nodes) {
+      if (n.type === 'ros2node') { m.set(n.id, (n.data as { node: GraphNode }).node); }
+    }
+    return m;
+  }, [nodes]);
   const channelById = useMemo(() => {
     const m = new Map<string, GraphChannel>();
     for (const n of nodes) {
@@ -125,11 +148,29 @@ export default function GraphEditor() {
     return m;
   }, [nodes]);
 
-  // A link is valid iff it connects exactly one node to exactly one channel —
-  // never node-to-node or channel-to-channel.
+  // ros2_control rule: an interface is exported by exactly one hardware
+  // component, so a second hardware link to the same interface would mean
+  // hardware wired to hardware — disallowed.
+  function wouldDoubleExportHardware(nodeId: string, channelId: string): boolean {
+    const node = nodeById.get(nodeId);
+    const channel = channelById.get(channelId);
+    if (channel?.kind !== 'interface' || node?.kind !== 'hardware') { return false; }
+    return edges.some(e => {
+      const d = e.data as LinkData;
+      return d.channelId === channelId && d.role === 'interface_exporter';
+    });
+  }
+
+  // A link is valid iff it connects exactly one node to exactly one channel
+  // (never node-to-node or channel-to-channel) and doesn't wire two hardware
+  // components onto the same interface.
   function isValidConnection(c: Connection | Edge): boolean {
     if (!c.source || !c.target || c.source === c.target) { return false; }
-    return nodeIdSet.has(c.source) !== nodeIdSet.has(c.target);
+    const sourceIsNode = nodeIdSet.has(c.source);
+    if (sourceIsNode === nodeIdSet.has(c.target)) { return false; }
+    const nodeId = sourceIsNode ? c.source : c.target;
+    const channelId = sourceIsNode ? c.target : c.source;
+    return !wouldDoubleExportHardware(nodeId, channelId);
   }
 
   const onConnect: OnConnect = (params) => {
@@ -140,29 +181,21 @@ export default function GraphEditor() {
 
     const nodeId = sourceIsNode ? source : target;
     const channelId = sourceIsNode ? target : source;
+    const node = nodeById.get(nodeId);
     const channel = channelById.get(channelId);
-    if (!channel) { return; }
+    if (!node || !channel) { return; }
+    if (wouldDoubleExportHardware(nodeId, channelId)) { return; }
 
     // The node used its source ("out") handle iff it's the connection source,
     // which means it produces/initiates on this channel.
-    const role = roleFor(channel.kind, sourceIsNode);
+    const role = roleForConnection(node, channel, sourceIsNode);
     const duplicate = edges.some(e => {
       const d = e.data as LinkData;
       return d.nodeId === nodeId && d.channelId === channelId && d.role === role;
     });
     if (duplicate) { return; }
 
-    const edge: Edge = {
-      id: crypto.randomUUID(),
-      source,
-      target,
-      sourceHandle: params.sourceHandle ?? 'out',
-      targetHandle: params.targetHandle ?? 'in',
-      label: roleLabel(role),
-      markerEnd: { type: MarkerType.ArrowClosed },
-      data: { nodeId, channelId, role } satisfies LinkData,
-    };
-    setEdges(es => addEdge(edge, es));
+    setEdges(es => addEdge(linkToEdge({ id: crypto.randomUUID(), nodeId, channelId, role }), es));
     schedulePush();
   };
 
@@ -178,7 +211,9 @@ export default function GraphEditor() {
   function addChannel(kind: ChannelKind) {
     const id = crypto.randomUUID();
     const pos = spawnPosition(nodes.length);
-    const channel: GraphChannel = { id, kind, name: '', type: '', x: pos.x, y: pos.y };
+    const channel: GraphChannel = kind === 'interface'
+      ? { id, kind, name: '', type: '', joint: '', direction: 'command', x: pos.x, y: pos.y }
+      : { id, kind, name: '', type: '', x: pos.x, y: pos.y };
     setNodes(ns => [...ns, { id, type: 'ros2channel', position: pos, data: { channel } }]);
     schedulePush();
     setEditing({ kind: 'channel', id });
@@ -199,15 +234,18 @@ export default function GraphEditor() {
         ? { ...n, data: { channel: { ...(n.data as { channel: GraphChannel }).channel, ...changes } } }
         : n,
     ));
-    // Changing a channel's kind invalidates its links' role names (e.g. a
-    // "publisher" on a topic must become a "service_client" on a service).
-    // Remap each affected link, preserving which side (producer vs consumer).
+    // Changing a channel's kind invalidates its links' roles (e.g. a "publisher"
+    // on a topic must become a "service_client" on a service, or an interface
+    // role decided by node kind). Rebuild each affected edge accordingly.
     if (changes.kind) {
+      const newKind = changes.kind;
       setEdges(es => es.map(e => {
         const d = e.data as LinkData;
         if (d.channelId !== id) { return e; }
-        const role = roleFor(changes.kind!, roleIsProducer(d.role));
-        return { ...e, label: roleLabel(role), data: { ...d, role } };
+        const role = newKind === 'interface'
+          ? (nodeById.get(d.nodeId)?.kind === 'hardware' ? 'interface_exporter' : 'interface_consumer')
+          : roleFor(newKind, roleIsProducer(d.role));
+        return linkToEdge({ id: e.id, nodeId: d.nodeId, channelId: d.channelId, role });
       }));
     }
     schedulePush();
@@ -235,21 +273,35 @@ export default function GraphEditor() {
   }
 
   return (
-    <div className="graph-editor">
+    // Clicking anywhere outside an open add-menu dismisses it (the menu/groups
+    // below stop propagation so their own clicks don't trigger this).
+    <div className="graph-editor" onClick={() => setAddMenu(null)}>
       <header className="layout-toolbar">
         <div className="layout-toolbar-left">
           <span className="title">Architecture Graph</span>
         </div>
-        <div className="layout-toolbar-right graph-toolbar-actions">
-          <button className="layout-add-btn" onClick={() => addNode('node')}>+ Node</button>
-          <button className="layout-add-btn" onClick={() => addNode('controller')}>+ Controller</button>
-          <button className="layout-add-btn" onClick={() => addNode('hardware')}>+ Hardware</button>
-          <span className="graph-toolbar-sep" />
-          <button className="layout-add-btn" onClick={() => addChannel('topic')}>+ Topic</button>
-          <button className="layout-add-btn" onClick={() => addChannel('service')}>+ Service</button>
-          <button className="layout-add-btn" onClick={() => addChannel('action')}>+ Action</button>
-          <button className="layout-add-btn" onClick={() => addChannel('control')}>+ Control</button>
-          <button className="layout-add-btn" onClick={() => addChannel('hardware_interface')}>+ HW Interface</button>
+        <div className="layout-toolbar-right graph-toolbar-actions" onClick={e => e.stopPropagation()}>
+          <div className="graph-add-group">
+            <button className="layout-add-btn" onClick={() => setAddMenu(m => (m === 'node' ? null : 'node'))}>+ Node ▾</button>
+            {addMenu === 'node' && (
+              <div className="graph-add-menu">
+                <button onClick={() => { addNode('node'); setAddMenu(null); }}>Node</button>
+                <button onClick={() => { addNode('controller'); setAddMenu(null); }}>Controller</button>
+                <button onClick={() => { addNode('hardware'); setAddMenu(null); }}>Hardware</button>
+              </div>
+            )}
+          </div>
+          <div className="graph-add-group">
+            <button className="layout-add-btn" onClick={() => setAddMenu(m => (m === 'channel' ? null : 'channel'))}>+ Channel ▾</button>
+            {addMenu === 'channel' && (
+              <div className="graph-add-menu">
+                <button onClick={() => { addChannel('topic'); setAddMenu(null); }}>Topic</button>
+                <button onClick={() => { addChannel('service'); setAddMenu(null); }}>Service</button>
+                <button onClick={() => { addChannel('action'); setAddMenu(null); }}>Action</button>
+                <button onClick={() => { addChannel('interface'); setAddMenu(null); }}>Interface</button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -266,6 +318,7 @@ export default function GraphEditor() {
           onNodesDelete={schedulePush}
           onEdgesDelete={schedulePush}
           onNodeDoubleClick={(_e, n) => setEditing({ kind: n.type === 'ros2node' ? 'node' : 'channel', id: n.id })}
+          onPaneClick={() => setAddMenu(null)}
           deleteKeyCode={['Delete', 'Backspace']}
           fitView
           proOptions={{ hideAttribution: true }}

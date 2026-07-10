@@ -79,14 +79,17 @@ The schema (see `src/graphTypes.ts`) has three flat arrays:
 - `nodes` — rectangles, each with a `kind` (`node` = a plain ROS2 node, `controller` = a
   ros2_control controller, `hardware` = a hardware component/interface plugin), plus `name`,
   `namespace`, `language` (`cpp`/`py`/`rust`), `notes`.
-- `channels` — ellipses, each with a `kind` and, for the ROS2 interface kinds, the single interface
-  `type` string that is its contract (e.g. `geometry_msgs/msg/Twist`). Kinds: `topic`, `service`,
-  `action` (type is a real `.msg`/`.srv`/`.action`), plus `control` and `hardware_interface` from
-  ros2_control (here `type` is a free-form interface name like `position`/`velocity`, not a msg type).
+- `channels` — ellipses, each with a `kind`. `topic`/`service`/`action` carry the single ROS2
+  interface `type` string that is their contract (e.g. `geometry_msgs/msg/Twist`, a real
+  `.msg`/`.srv`/`.action`). `interface` is a ros2_control command/state interface: instead of a
+  `type` it has `joint` (e.g. `wheel_left_joint`), `direction` (`command` or `state`), and `name`
+  (the interface name, e.g. `position`/`velocity`/`effort`).
 - `links` — connect one node to one channel with a `role`: `publisher`/`subscriber` (topic),
-  `service_client`/`service_server` (service), `action_client`/`action_server` (action),
-  `control_writer`/`control_reader` (control), `interface_exporter`/`interface_consumer`
-  (hardware_interface). A topic being many-to-many is just several links pointing at the same channel.
+  `service_client`/`service_server` (service), `action_client`/`action_server` (action), and
+  `interface_exporter`/`interface_consumer` (interface — hardware *exports* an interface, a
+  controller/node *claims* it). A topic being many-to-many is just several links pointing at the same
+  channel; an interface is exported by exactly one hardware component (the editor blocks wiring two
+  hardware to the same interface).
 
 When asked to **implement / fulfill / scaffold** a `.ros2graph.json`:
 
