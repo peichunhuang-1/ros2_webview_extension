@@ -3,7 +3,7 @@ import type { GraphNode } from '../../ros2_apis/bridge_types';
 import { nodeKindColor } from './graphModel';
 
 const LANGUAGE_LABELS: Record<GraphNode['language'], string> = {
-  cpp: 'C++', py: 'Python', rust: 'Rust',
+  cpp: 'C++', py: 'Python',
 };
 
 // A ROS2 node / controller / hardware component, drawn as a rectangle. Two

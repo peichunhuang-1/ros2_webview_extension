@@ -78,7 +78,7 @@ The schema (see `src/graphTypes.ts`) has three flat arrays:
 
 - `nodes` — rectangles, each with a `kind` (`node` = a plain ROS2 node, `controller` = a
   ros2_control controller, `hardware` = a hardware component/interface plugin), plus `name`,
-  `namespace`, `language` (`cpp`/`py`/`rust`), `notes`.
+  `namespace`, `language` (`cpp`/`py`; `controller` and `hardware` are always `cpp`), `notes`.
 - `channels` — ellipses, each with a `kind`. `topic`/`service`/`action` carry the single ROS2
   interface `type` string that is their contract (e.g. `geometry_msgs/msg/Twist`, a real
   `.msg`/`.srv`/`.action`). `interface` is a ros2_control command/state interface: instead of a

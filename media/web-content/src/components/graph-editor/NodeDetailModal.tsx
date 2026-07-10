@@ -14,6 +14,14 @@ export default function NodeDetailModal({ node, onChange, onClose, onDelete }: {
   // reasoning as the layout PanelEditor.
   const pressedOnBackdrop = useRef(false);
 
+  // ros2_control controllers and hardware are C++ plugins, so their language is
+  // fixed to cpp — switching a node to one of those kinds coerces it.
+  const cppOnly = node.kind !== 'node';
+
+  function changeKind(kind: NodeKind) {
+    onChange(kind === 'node' ? { kind } : { kind, language: 'cpp' });
+  }
+
   return (
     <div
       className="layout-modal-backdrop"
@@ -28,7 +36,7 @@ export default function NodeDetailModal({ node, onChange, onClose, onDelete }: {
 
         <label className="layout-field">
           Kind
-          <select value={node.kind} onChange={e => onChange({ kind: e.target.value as NodeKind })}>
+          <select value={node.kind} onChange={e => changeKind(e.target.value as NodeKind)}>
             <option value="node">Node</option>
             <option value="controller">Controller</option>
             <option value="hardware">Hardware</option>
@@ -47,10 +55,14 @@ export default function NodeDetailModal({ node, onChange, onClose, onDelete }: {
 
         <label className="layout-field">
           Language
-          <select value={node.language} onChange={e => onChange({ language: e.target.value as NodeLanguage })}>
+          <select
+            value={node.language}
+            disabled={cppOnly}
+            title={cppOnly ? 'ros2_control controllers and hardware are C++' : undefined}
+            onChange={e => onChange({ language: e.target.value as NodeLanguage })}
+          >
             <option value="cpp">C++</option>
             <option value="py">Python</option>
-            <option value="rust">Rust</option>
           </select>
         </label>
 
