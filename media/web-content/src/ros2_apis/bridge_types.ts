@@ -150,7 +150,7 @@ export type UploadImageResult = {
 //
 // Mirrors src/graphTypes.ts on the extension host — keep the two in sync.
 
-export type NodeLanguage = 'cpp' | 'py' | 'rust';
+export type NodeLanguage = 'cpp' | 'py';
 
 export type NodeKind = 'node' | 'controller' | 'hardware';
 

@@ -49,8 +49,7 @@ export default function NodeDetailModal({ node, onChange, onClose, onDelete }: {
           Language
           <select value={node.language} onChange={e => onChange({ language: e.target.value as NodeLanguage })}>
             <option value="cpp">C++</option>
-            <option value="py">Python</option>
-            <option value="rust">Rust</option>
+            <option disabled={node.kind === 'hardware' || node.kind === 'controller'} value="py">Python</option>
           </select>
         </label>
 
