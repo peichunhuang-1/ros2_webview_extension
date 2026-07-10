@@ -17,7 +17,9 @@
 // it's just many links pointing at the same channel. Services/actions are
 // directional, which the role names capture.
 
-export type NodeLanguage = 'cpp' | 'py' | 'rust';
+// Plain nodes may be C++ or Python; controllers and hardware are always C++
+// (ros2_control plugins are C++), enforced by the editor.
+export type NodeLanguage = 'cpp' | 'py';
 
 // The three rectangle kinds. A plain `node` is any ROS2 node; `controller` and
 // `hardware` model the ros2_control world (a controller_manager-loaded
