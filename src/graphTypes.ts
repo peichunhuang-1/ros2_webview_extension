@@ -72,11 +72,27 @@ export type LinkRole =
   // interface: hardware exports it, a controller/node consumes (claims) it.
   | 'interface_exporter' | 'interface_consumer';
 
+// Per-endpoint QoS, relevant to topic (and loosely action/service) links.
+export type QosReliability = 'reliable' | 'best_effort';
+export type QosDurability = 'volatile' | 'transient_local';
+
+export interface LinkQos {
+  reliability?: QosReliability;
+  durability?:  QosDurability;
+  depth?:       number; // history/queue depth
+}
+
 export interface GraphLink {
   id:        string;
   nodeId:    string;
   channelId: string;
   role:      LinkRole;
+  // Optional per-connection properties. `rate` (Hz) is meaningful for a
+  // publisher; `qos` for topic pub/sub endpoints. `notes` is free-form guidance
+  // for whoever (or whatever) scaffolds the code.
+  rate?:     number;
+  qos?:      LinkQos;
+  notes?:    string;
 }
 
 export interface GraphDocument {

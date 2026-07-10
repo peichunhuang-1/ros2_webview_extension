@@ -186,11 +186,23 @@ export type LinkRole =
   | 'action_client' | 'action_server'
   | 'interface_exporter' | 'interface_consumer';
 
+export type QosReliability = 'reliable' | 'best_effort';
+export type QosDurability = 'volatile' | 'transient_local';
+
+export type LinkQos = {
+  reliability?: QosReliability;
+  durability?:  QosDurability;
+  depth?:       number;
+};
+
 export type GraphLink = {
   id:        string;
   nodeId:    string;
   channelId: string;
   role:      LinkRole;
+  rate?:     number;
+  qos?:      LinkQos;
+  notes?:    string;
 };
 
 export type GraphDocument = {

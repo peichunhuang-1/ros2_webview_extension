@@ -89,7 +89,9 @@ The schema (see `src/graphTypes.ts`) has three flat arrays:
   `interface_exporter`/`interface_consumer` (interface — hardware *exports* an interface, a
   controller/node *claims* it). A topic being many-to-many is just several links pointing at the same
   channel; an interface is exported by exactly one hardware component (the editor blocks wiring two
-  hardware to the same interface).
+  hardware to the same interface). A link may also carry optional properties: `rate` (Hz, for a
+  publisher), `qos` (`reliability`/`durability`/`depth`, for topic endpoints), and free-form `notes` —
+  honor them when generating the endpoint's code.
 
 When asked to **implement / fulfill / scaffold** a `.ros2graph.json`:
 

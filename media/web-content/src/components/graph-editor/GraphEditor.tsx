@@ -6,38 +6,41 @@ import {
 import '@xyflow/react/dist/style.css';
 import { graphApi } from '../../ros2_apis/graphApi';
 import type {
-  ChannelKind, GraphChannel, GraphDocument, GraphNode, LinkRole, NodeKind,
+  ChannelKind, GraphChannel, GraphDocument, GraphLink, GraphNode, LinkRole, NodeKind,
 } from '../../ros2_apis/bridge_types';
 import { roleFor, roleIsProducer, roleLabel } from './graphModel';
 import Ros2NodeCard from './Ros2NodeCard';
 import Ros2ChannelNode from './Ros2ChannelNode';
 import NodeDetailModal from './NodeDetailModal';
 import ChannelDetailModal from './ChannelDetailModal';
+import LinkDetailModal from './LinkDetailModal';
 import '../LayoutEditor.css';
 import './GraphEditor.css';
 
 const nodeTypes: NodeTypes = { ros2node: Ros2NodeCard, ros2channel: Ros2ChannelNode };
 
-type LinkData = { nodeId: string; channelId: string; role: LinkRole };
-type Link = { id: string; nodeId: string; channelId: string; role: LinkRole };
+// Everything about a link except its id lives on the React Flow edge's `data`,
+// so per-connection properties (rate/qos/notes) round-trip through the editor.
+type LinkData = Omit<GraphLink, 'id'>;
 
 // --- GraphDocument <-> React Flow conversions --------------------------------
 
-// One place that turns a (nodeId, channelId, role) link into a React Flow edge,
-// so a freshly-connected edge and a reloaded one are always built identically.
-// The producer/initiator side is the arrow source: a publisher/client/exporter
-// runs node -> channel, a subscriber/server/consumer runs channel -> node.
-function linkToEdge(link: Link): Edge {
+// One place that turns a link into a React Flow edge, so a freshly-connected
+// edge and a reloaded one are always built identically. The producer/initiator
+// side is the arrow source: a publisher/client/exporter runs node -> channel, a
+// subscriber/server/consumer runs channel -> node.
+function linkToEdge(link: GraphLink): Edge {
   const producer = roleIsProducer(link.role);
+  const { id, ...data } = link;
   return {
-    id: link.id,
+    id,
     source: producer ? link.nodeId : link.channelId,
     target: producer ? link.channelId : link.nodeId,
     sourceHandle: 'out',
     targetHandle: 'in',
     label: roleLabel(link.role),
     markerEnd: { type: MarkerType.ArrowClosed },
-    data: { nodeId: link.nodeId, channelId: link.channelId, role: link.role } satisfies LinkData,
+    data,
   };
 }
 
@@ -62,10 +65,7 @@ function rfToDoc(nodes: Node[], edges: Edge[]): GraphDocument {
       gchannels.push({ ...(n.data as { channel: GraphChannel }).channel, x: n.position.x, y: n.position.y });
     }
   }
-  const links = edges.map(e => {
-    const d = e.data as LinkData;
-    return { id: e.id, nodeId: d.nodeId, channelId: d.channelId, role: d.role };
-  });
+  const links = edges.map(e => ({ id: e.id, ...(e.data as LinkData) }));
   return { version: 1, nodes: gnodes, channels: gchannels, links };
 }
 
@@ -89,7 +89,7 @@ function roleForConnection(node: GraphNode, channel: GraphChannel, nodeIsProduce
 export default function GraphEditor() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [editing, setEditing] = useState<{ kind: 'node' | 'channel'; id: string } | null>(null);
+  const [editing, setEditing] = useState<{ kind: 'node' | 'channel' | 'link'; id: string } | null>(null);
   const [addMenu, setAddMenu] = useState<null | 'node' | 'channel'>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -245,9 +245,23 @@ export default function GraphEditor() {
         const role = newKind === 'interface'
           ? (nodeById.get(d.nodeId)?.kind === 'hardware' ? 'interface_exporter' : 'interface_consumer')
           : roleFor(newKind, roleIsProducer(d.role));
-        return linkToEdge({ id: e.id, nodeId: d.nodeId, channelId: d.channelId, role });
+        return linkToEdge({ ...d, id: e.id, role });
       }));
     }
+    schedulePush();
+  }
+
+  function updateLinkData(id: string, changes: Partial<GraphLink>) {
+    setEdges(es => es.map(e => {
+      if (e.id !== id) { return e; }
+      return linkToEdge({ ...(e.data as LinkData), id, ...changes });
+    }));
+    schedulePush();
+  }
+
+  function deleteLinkById(id: string) {
+    setEdges(es => es.filter(e => e.id !== id));
+    setEditing(null);
     schedulePush();
   }
 
@@ -267,6 +281,16 @@ export default function GraphEditor() {
   const editingChannel = editing?.kind === 'channel'
     ? nodes.find(n => n.id === editing.id)
     : undefined;
+  const editingLink = (() => {
+    if (editing?.kind !== 'link') { return undefined; }
+    const edge = edges.find(e => e.id === editing.id);
+    if (!edge) { return undefined; }
+    const d = edge.data as LinkData;
+    const node = nodeById.get(d.nodeId);
+    const channel = channelById.get(d.channelId);
+    if (!node || !channel) { return undefined; }
+    return { link: { id: edge.id, ...d } as GraphLink, node, channel };
+  })();
 
   if (!loaded) {
     return <div className="graph-editor"><p className="hint">Loading graph…</p></div>;
@@ -318,6 +342,7 @@ export default function GraphEditor() {
           onNodesDelete={schedulePush}
           onEdgesDelete={schedulePush}
           onNodeDoubleClick={(_e, n) => setEditing({ kind: n.type === 'ros2node' ? 'node' : 'channel', id: n.id })}
+          onEdgeDoubleClick={(_e, edge) => setEditing({ kind: 'link', id: edge.id })}
           onPaneClick={() => setAddMenu(null)}
           deleteKeyCode={['Delete', 'Backspace']}
           fitView
@@ -341,6 +366,16 @@ export default function GraphEditor() {
           onChange={changes => updateChannelData(editingChannel.id, changes)}
           onClose={() => setEditing(null)}
           onDelete={() => deleteById(editingChannel.id)}
+        />
+      )}
+      {editingLink && (
+        <LinkDetailModal
+          link={editingLink.link}
+          node={editingLink.node}
+          channel={editingLink.channel}
+          onChange={changes => updateLinkData(editingLink.link.id, changes)}
+          onClose={() => setEditing(null)}
+          onDelete={() => deleteLinkById(editingLink.link.id)}
         />
       )}
     </div>
