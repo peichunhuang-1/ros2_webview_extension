@@ -1,0 +1,151 @@
+// Schema for the ROS2 node-graph architecture designer (`.ros2graph.json`).
+//
+// This is the "backend" companion to the `.ros2ui.json` UI layout: instead of
+// arranging GUI panels, it describes the ROS2 computation graph — which nodes
+// exist and how they connect through topics/services/actions — so an agent can
+// later scaffold the actual node packages from it (see CLAUDE.md guidance).
+//
+// Three primitives, kept deliberately flat so the file is easy to diff and easy
+// for an agent to read:
+//   - GraphNode    — a ROS2 node (drawn as a rectangle)
+//   - GraphChannel — a topic/service/action (drawn as an ellipse); carries the
+//                    single message/service/action *type* that is its contract
+//   - GraphLink    — connects one node to one channel, with a `role` that
+//                    encodes both which side and the data direction
+//
+// A topic being many-to-many (N publishers, M subscribers) falls out for free:
+// it's just many links pointing at the same channel. Services/actions are
+// directional, which the role names capture.
+
+// Plain nodes may be C++ or Python; controllers and hardware are always C++
+// (ros2_control plugins are C++), enforced by the editor.
+export type NodeLanguage = 'cpp' | 'py';
+
+// The three rectangle kinds. A plain `node` is any ROS2 node; `controller` and
+// `hardware` model the ros2_control world (a controller_manager-loaded
+// controller, and a hardware component / hardware interface plugin).
+export type NodeKind = 'node' | 'controller' | 'hardware';
+
+export interface GraphNode {
+  id:         string;
+  kind:       NodeKind;
+  name:       string;
+  namespace:  string;
+  language:   NodeLanguage;
+  x:          number;
+  y:          number;
+  notes?:     string;
+}
+
+// Ellipse kinds. topic/service/action are the ROS2 pub-sub/RPC primitives;
+// `interface` is a ros2_control command/state interface exported by hardware and
+// claimed by a controller.
+export type ChannelKind = 'topic' | 'service' | 'action' | 'interface';
+
+// A ros2_control interface is either a command interface (a controller writes it,
+// hardware reads it) or a state interface (hardware writes it, a controller reads it).
+export type InterfaceDirection = 'command' | 'state';
+
+export interface GraphChannel {
+  id:    string;
+  kind:  ChannelKind;
+  // For topic/service/action: the ROS name (e.g. "/cmd_vel"). For an interface:
+  // the interface name (e.g. "position", "velocity", "effort").
+  name:  string;
+  // For topic/service/action: the interface type string, e.g. "geometry_msgs/msg/Twist"
+  // (empty until picked). Unused for `interface` channels.
+  type:  string;
+  // `interface` channels only: the ros2_control joint/link the interface belongs
+  // to (e.g. "wheel_left") and its direction (command vs state).
+  joint?:     string;
+  direction?: InterfaceDirection;
+  x:     number;
+  y:     number;
+}
+
+// Role of a node on a channel. The producer/initiator side (publisher, client)
+// is the one the connection arrow points *away* from; the consumer/provider
+// side (subscriber, server) is where it points *to*. Which pair is valid
+// depends on the channel kind (see roleFor / linkRolesForKind).
+export type LinkRole =
+  | 'publisher' | 'subscriber'
+  | 'service_client' | 'service_server'
+  | 'action_client' | 'action_server'
+  // interface: hardware exports it, a controller/node consumes (claims) it.
+  | 'interface_exporter' | 'interface_consumer';
+
+// Per-endpoint QoS, relevant to topic (and loosely action/service) links.
+export type QosReliability = 'reliable' | 'best_effort';
+export type QosDurability = 'volatile' | 'transient_local';
+
+export interface LinkQos {
+  reliability?: QosReliability;
+  durability?:  QosDurability;
+  depth?:       number; // history/queue depth
+}
+
+export interface GraphLink {
+  id:        string;
+  nodeId:    string;
+  channelId: string;
+  role:      LinkRole;
+  // Optional per-connection properties. `rate` (Hz) is meaningful for a
+  // publisher; `qos` for topic pub/sub endpoints. `notes` is free-form guidance
+  // for whoever (or whatever) scaffolds the code.
+  rate?:     number;
+  qos?:      LinkQos;
+  notes?:    string;
+}
+
+export interface GraphDocument {
+  version:  1;
+  nodes:    GraphNode[];
+  channels: GraphChannel[];
+  links:    GraphLink[];
+}
+
+export function emptyGraphDocument(): GraphDocument {
+  return { version: 1, nodes: [], channels: [], links: [] };
+}
+
+// The two roles valid for a channel kind, ordered [producer/initiator, consumer/provider]
+// — i.e. [arrow source side, arrow target side].
+export function linkRolesForKind(kind: ChannelKind): [LinkRole, LinkRole] {
+  switch (kind) {
+    case 'topic':     return ['publisher', 'subscriber'];
+    case 'service':   return ['service_client', 'service_server'];
+    case 'action':    return ['action_client', 'action_server'];
+    case 'interface': return ['interface_exporter', 'interface_consumer'];
+  }
+}
+
+// Resolves the role for a new link from the channel kind and the data direction:
+// nodeIsProducer === true means the arrow runs node -> channel (publisher / client / action client).
+export function roleFor(kind: ChannelKind, nodeIsProducer: boolean): LinkRole {
+  const [producer, consumer] = linkRolesForKind(kind);
+  return nodeIsProducer ? producer : consumer;
+}
+
+// Tolerant of older/partial files and hand edits: backfills any missing top-level
+// array and drops links that reference a node/channel that no longer exists, so
+// downstream code (and the editor) can rely on the shape being consistent.
+export function parseGraphDocumentText(text: string): GraphDocument {
+  const trimmed = text.trim();
+  if (!trimmed) { return emptyGraphDocument(); }
+  try {
+    const doc = JSON.parse(trimmed) as Partial<GraphDocument>;
+    // Backfill kind on nodes written before the ros2_control kinds existed.
+    const nodes = (Array.isArray(doc.nodes) ? doc.nodes : []).map(n => {
+      const node = n as Partial<GraphNode>;
+      return { ...node, kind: node.kind ?? 'node' } as GraphNode;
+    });
+    const channels = Array.isArray(doc.channels) ? doc.channels : [];
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const channelIds = new Set(channels.map(c => c.id));
+    const links = (Array.isArray(doc.links) ? doc.links : [])
+      .filter(l => nodeIds.has(l.nodeId) && channelIds.has(l.channelId));
+    return { version: 1, nodes, channels, links };
+  } catch {
+    return emptyGraphDocument();
+  }
+}

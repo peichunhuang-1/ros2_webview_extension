@@ -66,3 +66,42 @@ transcribed by hand drifts from the spec. Instead:
    call `generate_gui_scaffold` again before this — opening/refreshing the preview auto-regenerates
    `<name>.html` from the layout and the current panel files first, so it always reflects your
    latest edits even if you forget step 1 on a later change.
+
+## Node-graph architecture files (`.ros2graph.json`)
+
+A `.ros2graph.json` file is a **ROS2 computation-graph design**, edited visually in the
+"Architecture Graph" editor (open the file in VS Code, or run **"ROS2 Webview: New Architecture
+Graph File"**). It is the backend companion to a `.ros2ui.json` UI layout: instead of GUI panels,
+it describes the nodes and their wiring so you can scaffold the actual ROS2 packages from it.
+
+The schema (see `src/graphTypes.ts`) has three flat arrays:
+
+- `nodes` — rectangles, each with a `kind` (`node` = a plain ROS2 node, `controller` = a
+  ros2_control controller, `hardware` = a hardware component/interface plugin), plus `name`,
+  `namespace`, `language` (`cpp`/`py`; `controller` and `hardware` are always `cpp`), `notes`.
+- `channels` — ellipses, each with a `kind`. `topic`/`service`/`action` carry the single ROS2
+  interface `type` string that is their contract (e.g. `geometry_msgs/msg/Twist`, a real
+  `.msg`/`.srv`/`.action`). `interface` is a ros2_control command/state interface: instead of a
+  `type` it has `joint` (e.g. `wheel_left_joint`), `direction` (`command` or `state`), and `name`
+  (the interface name, e.g. `position`/`velocity`/`effort`).
+- `links` — connect one node to one channel with a `role`: `publisher`/`subscriber` (topic),
+  `service_client`/`service_server` (service), `action_client`/`action_server` (action), and
+  `interface_exporter`/`interface_consumer` (interface — hardware *exports* an interface, a
+  controller/node *claims* it). A topic being many-to-many is just several links pointing at the same
+  channel; an interface is exported by exactly one hardware component (the editor blocks wiring two
+  hardware to the same interface). A link may also carry optional properties: `rate` (Hz, for a
+  publisher), `qos` (`reliability`/`durability`/`depth`, for topic endpoints), and free-form `notes` —
+  honor them when generating the endpoint's code.
+
+When asked to **implement / fulfill / scaffold** a `.ros2graph.json`:
+
+- Treat the file as the source of truth for the architecture. For each node, gather its links to
+  learn exactly which topics it publishes/subscribes and which services/actions it serves/calls.
+- Resolve every `channel.type` through the MCP schema tools (`get_ros2_msg_schema` /
+  `get_ros2_srv_schema` / `get_ros2_action_schema`) before writing pub/sub/client/server code — never
+  guess message fields. Split a type string on `/` (package / kind / name) to get the args.
+- Generate one ROS2 package per node in the node's chosen `language`, wiring up the publishers,
+  subscribers, service servers/clients, and action servers/clients its links imply. Use each node's
+  `notes` as the behavioral spec for what the implementation should actually do.
+- There is deliberately **no deterministic code generator** for this file yet — you write the package
+  code directly. Don't invent a scaffold command that doesn't exist; read the graph and implement it.

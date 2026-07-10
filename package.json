@@ -27,6 +27,10 @@
         "title": "ROS2 Webview: New Layout Editor File"
       },
       {
+        "command": "ros2-webview-extension.newGraphFile",
+        "title": "ROS2 Webview: New Architecture Graph File"
+      },
+      {
         "command": "ros2-webview-extension.generateGuiScaffold",
         "title": "ROS2 Webview: Generate GUI Scaffold",
         "icon": "$(layout)"
@@ -77,6 +81,13 @@
         "displayName": "ROS2 Webview Layout Editor",
         "selector": [
           { "filenamePattern": "*.ros2ui.json" }
+        ]
+      },
+      {
+        "viewType": "ros2-webview-extension.graphEditor",
+        "displayName": "ROS2 Webview Architecture Graph Editor",
+        "selector": [
+          { "filenamePattern": "*.ros2graph.json" }
         ]
       }
     ],

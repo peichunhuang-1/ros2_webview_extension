@@ -3,7 +3,9 @@ import WebviewPanelProvider from './WebviewPanelProvider';
 import { startLocalBridgeServer } from './localBridgeServer';
 import { PreviewPanelManager } from './previewPanel';
 import LayoutEditorProvider, { LAYOUT_EDITOR_VIEW_TYPE } from './layoutEditorProvider';
+import GraphEditorProvider, { GRAPH_EDITOR_VIEW_TYPE } from './graphEditorProvider';
 import { emptyLayoutDocument } from './layoutTypes';
+import { emptyGraphDocument } from './graphTypes';
 import type { VendorAssets } from './scaffoldGen';
 import { loadVendorAssets, runGenerateScaffold } from './scaffoldRunner';
 import { maybeOfferMcpSetup, setupClaudeCodeMcp } from './claudeCodeSetup';
@@ -30,7 +32,45 @@ function registerWebviewProviders(context: vscode.ExtensionContext): void {
       new LayoutEditorProvider(context.extensionUri),
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
+    vscode.window.registerCustomEditorProvider(
+      GRAPH_EDITOR_VIEW_TYPE,
+      new GraphEditorProvider(context.extensionUri),
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
   );
+}
+
+// Creates a new file with `emptyContent` next to the workspace root and opens it in the
+// given custom editor. Shared by the "New Layout File" and "New Graph File" commands.
+async function createAndOpen(
+  viewType: string, label: string, defaultName: string, extension: string, emptyContent: string,
+): Promise<void> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    vscode.window.showErrorMessage('Open a folder/workspace first to create a file.');
+    return;
+  }
+
+  const name = await vscode.window.showInputBox({
+    prompt: `Name for the new ${label} file`,
+    value: defaultName,
+    validateInput: v => v.trim() ? null : 'Enter a name.',
+  });
+  if (!name) { return; }
+
+  const fileName = name.endsWith(extension) ? name : `${name}${extension}`;
+  const uri = vscode.Uri.joinPath(folder.uri, fileName);
+
+  try {
+    await vscode.workspace.fs.stat(uri);
+    vscode.window.showErrorMessage(`${fileName} already exists.`);
+    return;
+  } catch {
+    // Doesn't exist yet — good, create it.
+  }
+
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(emptyContent, 'utf8'));
+  await vscode.commands.executeCommand('vscode.openWith', uri, viewType);
 }
 
 // The loopback HTTP server the MCP server process (a separate OS process) uses to reach
@@ -89,35 +129,13 @@ function registerCommands(
       }
     }),
 
-    vscode.commands.registerCommand('ros2-webview-extension.newLayoutFile', async () => {
-      const folder = vscode.workspace.workspaceFolders?.[0];
-      if (!folder) {
-        vscode.window.showErrorMessage('Open a folder/workspace first to create a layout file.');
-        return;
-      }
+    vscode.commands.registerCommand('ros2-webview-extension.newLayoutFile', () =>
+      createAndOpen(LAYOUT_EDITOR_VIEW_TYPE, 'layout', 'ui-layout', '.ros2ui.json',
+        JSON.stringify(emptyLayoutDocument(), null, 2) + '\n')),
 
-      const name = await vscode.window.showInputBox({
-        prompt: 'Name for the new layout file',
-        value: 'ui-layout',
-        validateInput: v => v.trim() ? null : 'Enter a name.',
-      });
-      if (!name) { return; }
-
-      const fileName = name.endsWith('.ros2ui.json') ? name : `${name}.ros2ui.json`;
-      const uri = vscode.Uri.joinPath(folder.uri, fileName);
-
-      try {
-        await vscode.workspace.fs.stat(uri);
-        vscode.window.showErrorMessage(`${fileName} already exists.`);
-        return;
-      } catch {
-        // Doesn't exist yet — good, create it.
-      }
-
-      const content = JSON.stringify(emptyLayoutDocument(), null, 2) + '\n';
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
-      await vscode.commands.executeCommand('vscode.openWith', uri, LAYOUT_EDITOR_VIEW_TYPE);
-    }),
+    vscode.commands.registerCommand('ros2-webview-extension.newGraphFile', () =>
+      createAndOpen(GRAPH_EDITOR_VIEW_TYPE, 'architecture graph', 'architecture', '.ros2graph.json',
+        JSON.stringify(emptyGraphDocument(), null, 2) + '\n')),
 
     vscode.commands.registerCommand('ros2-webview-extension.generateGuiScaffold', async (uri?: vscode.Uri) => {
       const target = uri ?? activeRos2uiJsonUri();
